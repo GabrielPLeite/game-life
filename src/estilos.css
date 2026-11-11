@@ -148,3 +148,4 @@ input.numero:focus { outline: 2px solid var(--glicose); outline-offset: 1px; }
 .passos { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .passos button { width: 44px; font-size: 1.25rem; }
 .passos strong { white-space: nowrap; min-width: 5ch; text-align: center; font-variant-numeric: tabular-nums; }
+.versao { text-align: center; }
