@@ -6,7 +6,12 @@ App pessoal de hábitos de saúde com gamificação. Funciona offline, instala n
 
 ## O que já existe
 
-- Registro de água em um toque (+250 ml e +500 ml), com meta diária ajustável
+- Treino em duas etapas: checagem de glicose ao começar (com os limites que você configurou) e conclusão ao terminar
+- Pausa legítima e descanso planejado, que mantêm a sequência
+- Sequência com congelamentos (1 a cada 7 dias, máximo 2) e queda pela metade em vez de zerar
+- Painel "se você não treinar hoje" com o que está em jogo
+- Registro de glicose (o valor nunca muda o XP)
+- Registro de água em um toque, com meta diária ajustável
 - XP e níveis com regras visíveis no próprio app
 - Backup dos dados em arquivo JSON
 
@@ -14,9 +19,11 @@ App pessoal de hábitos de saúde com gamificação. Funciona offline, instala n
 
 | Arquivo | O que faz |
 | --- | --- |
-| `src/regras.ts` | Regras do jogo (XP, níveis, virada do dia). Funções puras, com testes em `regras.test.ts` |
+| `src/regras.ts` | Regras do jogo (XP, sequência, checagem de glicose, níveis). Funções puras, com testes em `regras.test.ts` |
+| `src/resumo.ts` | Junta os registros do banco e aplica as regras. Testes em `resumo.test.ts` |
 | `src/db.ts` | Banco de dados local (IndexedDB via Dexie) |
-| `src/App.tsx` | A tela do app |
+| `src/App.tsx` | A tela principal |
+| `src/componentes/` | Cada cartão da tela (treino, água, glicose, configurações...) |
 | `src/estilos.css` | Aparência |
 | `.github/workflows/publicar.yml` | Publica o app no GitHub Pages a cada mudança |
 
