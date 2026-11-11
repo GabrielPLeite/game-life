@@ -52,6 +52,7 @@ export default function App() {
       <Agua resumo={resumo} />
       <Glicose resumo={resumo} configuracoes={dados.configuracoes} />
       <Configuracoes configuracoes={dados.configuracoes} metaAguaHoje={resumo.hoje.metaAguaMl} />
+      <p className="nota versao">Versão {__VERSAO__}</p>
     </main>
   );
 }
