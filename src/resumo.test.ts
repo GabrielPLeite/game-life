@@ -21,7 +21,7 @@ describe("montarResumo", () => {
     const r = montarResumo(d, "2026-11-11");
     expect(r.hoje.garantido).toBe(true);
     expect(r.sequencia.atual).toBe(1);
-    expect(r.xpHoje.partes).toEqual({ treinos: 40, checagens: 10, glicose: 5, agua: 0, dia: 20, bonus: 2 });
+    expect(r.xpHoje.partes).toEqual({ treinos: 40, checagens: 10, glicose: 5, agua: 0, dia: 20, bonus: 2, habitos: 0 });
     expect(r.ultimoTipo.manha).toBe("esteira");
   });
 
@@ -56,5 +56,29 @@ describe("montarResumo", () => {
     d.marcacoes.push({ ...base, id: 1, dia: "2026-11-10", tipo: "descanso" });
     expect(montarResumo(d, "2026-11-11").descansosRestantes).toBe(0);
     expect(montarResumo(d, "2026-11-16").descansosRestantes).toBe(1);
+  });
+});
+
+describe("montarResumo com hábitos e semana", () => {
+  it("hábitos somam XP e caminhada curta não conta", () => {
+    const d = vazio();
+    d.habitos = [
+      { ...base, id: 1, dia: "2026-11-11", tipo: "refeicao", descricao: "Almoço", contexto: "normal" },
+      { ...base, id: 2, dia: "2026-11-11", tipo: "caminhada", minutos: 15, refeicaoId: 1 },
+      { ...base, id: 3, dia: "2026-11-11", tipo: "caminhada", minutos: 5 },
+      { ...base, id: 4, dia: "2026-11-11", tipo: "sono", horas: 7.5 },
+      { ...base, id: 5, dia: "2026-11-11", tipo: "insulina", insulina: "basal" },
+      { ...base, id: 6, dia: "2026-11-11", tipo: "insulina", insulina: "rapida", unidades: 4 },
+    ];
+    const r = montarResumo(d, "2026-11-11");
+    expect(r.xpHoje.partes.habitos).toBe(5 + 10 + 5 + 5);
+    expect(r.jogo.missoes.find((m) => m.id === "caminhadas")?.progresso).toBe(1);
+  });
+
+  it("recompensa libera ao atingir o nível", () => {
+    const d = vazio();
+    d.recompensas = [{ id: 1, nome: "Tênis", nivel: 1, criadoEm: "" }, { id: 2, nome: "Relógio", nivel: 5, criadoEm: "" }];
+    const r = montarResumo(d, "2026-11-11");
+    expect(r.jogo.recompensas.map((x) => x.liberada)).toEqual([true, false]);
   });
 });
