@@ -149,3 +149,87 @@ input.numero:focus { outline: 2px solid var(--glicose); outline-offset: 1px; }
 .passos button { width: 44px; font-size: 1.25rem; }
 .passos strong { white-space: nowrap; min-width: 5ch; text-align: center; font-variant-numeric: tabular-nums; }
 .versao { text-align: center; }
+
+/* ---------- Fase 2: abas, hábitos, jogo, análises, relatório ---------- */
+:root { --chefe: #fb7185; --habito: #a5b4fc; }
+
+main { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+
+.abas {
+  position: fixed;
+  inset: auto 0 0 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #0b1222f2;
+  border-top: 1px solid var(--borda);
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  backdrop-filter: blur(8px);
+}
+.abas button { border: 0; min-height: 52px; font-size: 0.9rem; color: var(--suave); border-radius: 10px; }
+.abas button.ativa { color: var(--texto); background: var(--cartao); font-weight: 700; }
+
+button.principal.habito { background: var(--habito); border-color: var(--habito); color: #1e1b4b; min-height: 52px; padding: 0 18px; flex-shrink: 0; }
+input.texto {
+  font: inherit;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  color: var(--texto);
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+}
+.linha input.numero { min-width: 0; }
+.lista li.coluna { flex-direction: column; align-items: stretch; }
+.lista li.coluna .linha { width: 100%; }
+.feito { color: var(--treino); }
+.texto-forte { color: var(--texto); }
+.numero-pequeno { font-variant-numeric: tabular-nums; }
+.total.pequeno { font-size: 1.5rem; }
+.barra-cheia.chefe { background: var(--chefe); }
+
+.conquistas { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.conquistas li { border: 1px dashed var(--borda); border-radius: 12px; padding: 10px; display: grid; gap: 2px; color: var(--suave); font-size: 0.85rem; }
+.conquistas li strong { font-size: 0.9rem; }
+.conquistas li.obtida { border: 1px solid var(--xp); color: var(--texto); background: #facc1514; }
+.conquistas li.obtida strong { color: var(--xp); }
+
+.botao-arquivo { display: flex; align-items: center; justify-content: center; min-height: 48px; border: 1px solid var(--borda); border-radius: 12px; cursor: pointer; }
+.botao-arquivo input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+.grafico { width: 100%; height: auto; }
+.grafico .faixa-alvo { fill: #4ade801f; }
+.grafico .grade { stroke: var(--borda); stroke-width: 1; }
+.grafico .eixo { fill: var(--suave); font-size: 9px; }
+.grafico .bigode { stroke: var(--glicose); stroke-width: 2; stroke-linecap: round; opacity: 0.6; }
+.grafico .marca { fill: var(--glicose); stroke: var(--cartao); stroke-width: 2; }
+.grafico .ponto:hover .marca { r: 6; }
+
+.tabela { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.tabela th, .tabela td { padding: 8px 4px; border-bottom: 1px solid var(--borda); text-align: right; }
+.tabela th[scope="row"], .tabela thead th:first-child { text-align: left; font-weight: 400; color: var(--suave); }
+
+.relatorio { display: grid; gap: 12px; }
+.folha { background: #fff; color: #111; border-radius: 8px; padding: 20px 16px; font-size: 0.85rem; line-height: 1.4; }
+.folha h1 { font-size: 1.2rem; margin: 0 0 6px; }
+.folha h2 { font-size: 1rem; margin: 18px 0 6px; }
+.folha p { margin: 4px 0; }
+.folha table { width: 100%; border-collapse: collapse; margin: 4px 0; }
+.folha th, .folha td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; vertical-align: top; }
+.folha th { background: #f3f3f3; font-weight: 600; }
+.folha .obs { color: #555; font-size: 0.8rem; }
+
+@media print {
+  body { background: #fff; }
+  main { padding: 0; max-width: none; }
+  .nao-imprimir, header, .versao { display: none !important; }
+  .folha { border-radius: 0; padding: 0; font-size: 11pt; }
+}
+/* Evita que um item largo (chips, textos sem quebra) estoure a largura da tela. */
+main > *, .cartao > *, .etapa > * { min-width: 0; }
+.cartao-topo { flex-wrap: wrap; }
+input.numero::placeholder, input.texto::placeholder { font-size: 1rem; font-weight: 400; }
+html, body { overflow-x: hidden; }
+.ajuste, .relatorio .linha { flex-wrap: wrap; }
+.relatorio > * { min-width: 0; }
+.folha table { table-layout: fixed; overflow-wrap: anywhere; }

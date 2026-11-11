@@ -51,6 +51,35 @@ export interface Marcacao extends Registro {
   motivo?: MotivoPausa;
 }
 
+// ---------- Hábitos (fase 2) ----------
+
+export type ContextoRefeicao = "normal" | "antes_treino" | "depois_treino";
+
+/** Um registro de hábito. O campo "tipo" diz qual dos formatos abaixo ele segue. */
+export type Habito =
+  | (Registro & { tipo: "refeicao"; descricao: string; carboidratosG?: number; contexto: ContextoRefeicao })
+  | (Registro & { tipo: "caminhada"; minutos: number; refeicaoId?: number })
+  | (Registro & { tipo: "sono"; horas: number })
+  | (Registro & { tipo: "medida"; pesoKg?: number; cinturaCm?: number })
+  // Insulina: só registro do que você aplicou. O app nunca sugere dose.
+  | (Registro & { tipo: "insulina"; insulina: "basal" | "rapida"; unidades?: number });
+
+export type TipoHabito = Habito["tipo"];
+/** Omit que funciona em cada formato da união separadamente. */
+type OmitirEmCada<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+/** Um hábito novo, sem os campos que o app preenche sozinho. */
+export type NovoHabito = OmitirEmCada<Habito, keyof Registro>;
+
+/** Recompensa real que você define e libera ao chegar num nível. */
+export interface Recompensa {
+  id: number;
+  nome: string;
+  nivel: number;
+  criadoEm: string;
+  resgatadaEm?: string;
+  excluidoEm?: string;
+}
+
 export interface Dia {
   dia: string;
   /** Meta de água que valia naquele dia. Mudar a meta depois não altera o passado. */
@@ -64,6 +93,8 @@ export interface Configuracoes extends LimitesGlicose {
   /** Faixa-alvo do médico, só para informação (não pontua). */
   alvoMinimo: number;
   alvoMaximo: number;
+  /** Minutos de esteira na primeira semana do plano progressivo. */
+  esteiraBaseMin: number;
 }
 
 /** Valores iniciais, informados pelo Gabriel. Todos editáveis na tela de configurações. */
@@ -76,6 +107,7 @@ export const CONFIG_PADRAO: Configuracoes = {
   descansosPorSemana: 1,
   alvoMinimo: 70,
   alvoMaximo: 160,
+  esteiraBaseMin: 30,
 };
 
 class Banco extends Dexie {
@@ -83,6 +115,8 @@ class Banco extends Dexie {
   glicose!: EntityTable<RegistroGlicose, "id">;
   treinos!: EntityTable<RegistroTreino, "id">;
   marcacoes!: EntityTable<Marcacao, "id">;
+  habitos!: EntityTable<Habito, "id">;
+  recompensas!: EntityTable<Recompensa, "id">;
   dias!: EntityTable<Dia, "dia">;
   configuracoes!: EntityTable<Configuracoes, "id">;
 
@@ -95,6 +129,17 @@ class Banco extends Dexie {
       glicose: "++id, dia",
       treinos: "++id, dia",
       marcacoes: "++id, dia",
+      dias: "dia",
+      configuracoes: "id",
+    });
+    // Versão 3: hábitos e recompensas.
+    this.version(3).stores({
+      agua: "++id, dia",
+      glicose: "++id, dia",
+      treinos: "++id, dia",
+      marcacoes: "++id, dia",
+      habitos: "++id, dia, tipo",
+      recompensas: "++id",
       dias: "dia",
       configuracoes: "id",
     });
@@ -196,13 +241,38 @@ export async function marcarDia(tipo: Marcacao["tipo"], motivo?: MotivoPausa): P
 
 export const desfazerMarcacao = () => desfazerUltimo(db.marcacoes as never);
 
+// ---------- Hábitos ----------
+
+export async function registrarHabito(h: NovoHabito): Promise<number> {
+  await garantirDia();
+  return db.habitos.add({ ...novo(), ...h } as Habito);
+}
+
+export async function excluirHabito(id: number): Promise<void> {
+  await db.habitos.update(id, { excluidoEm: agoraIso() });
+}
+
+// ---------- Recompensas ----------
+
+export async function criarRecompensa(nome: string, nivel: number): Promise<void> {
+  await db.recompensas.add({ nome, nivel, criadoEm: agoraIso() } as Recompensa);
+}
+
+export async function resgatarRecompensa(id: number): Promise<void> {
+  await db.recompensas.update(id, { resgatadaEm: agoraIso() });
+}
+
+export async function excluirRecompensa(id: number): Promise<void> {
+  await db.recompensas.update(id, { excluidoEm: agoraIso() });
+}
+
 // ---------- Backup ----------
 
 /** Junta todos os dados em um objeto, para o backup em arquivo. */
 export async function exportarTudo() {
   return {
     app: "game-life",
-    versao: 2,
+    versao: 3,
     exportadoEm: agoraIso(),
     configuracoes: await lerConfiguracoes(),
     dias: await db.dias.toArray(),
@@ -210,5 +280,29 @@ export async function exportarTudo() {
     glicose: await db.glicose.toArray(),
     treinos: await db.treinos.toArray(),
     marcacoes: await db.marcacoes.toArray(),
+    habitos: await db.habitos.toArray(),
+    recompensas: await db.recompensas.toArray(),
   };
+}
+
+export type Backup = Awaited<ReturnType<typeof exportarTudo>>;
+
+/**
+ * Restaura um backup: apaga os dados atuais deste aparelho e grava os do arquivo.
+ * Aceita backups das versões 1, 2 e 3 (tabelas que não existiam ficam vazias).
+ */
+export async function restaurarBackup(dados: Partial<Backup> & { app?: string }): Promise<void> {
+  if (dados.app !== "game-life") throw new Error("Este arquivo não é um backup do Game Life.");
+  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.dias, db.configuracoes];
+  await db.transaction("rw", tabelas, async () => {
+    await Promise.all(tabelas.map((t) => t.clear()));
+    await db.agua.bulkPut(dados.agua ?? []);
+    await db.glicose.bulkPut(dados.glicose ?? []);
+    await db.treinos.bulkPut(dados.treinos ?? []);
+    await db.marcacoes.bulkPut(dados.marcacoes ?? []);
+    await db.habitos.bulkPut(dados.habitos ?? []);
+    await db.recompensas.bulkPut(dados.recompensas ?? []);
+    await db.dias.bulkPut(dados.dias ?? []);
+    if (dados.configuracoes) await db.configuracoes.put({ ...CONFIG_PADRAO, ...dados.configuracoes, id: "unica" });
+  });
 }

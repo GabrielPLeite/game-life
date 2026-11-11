@@ -89,6 +89,15 @@ export const XP_DIA_GARANTIDO = 20;
 export const XP_BONUS_POR_DIA_DE_SEQUENCIA = 2;
 export const MAX_BONUS_SEQUENCIA = 20;
 
+// Hábitos (fase 2). O XP vem de registrar, nunca do valor registrado.
+export const XP_POR_REFEICAO = 5;
+export const MAX_REFEICOES = 4;
+export const XP_POR_CAMINHADA = 10; // caminhada pós-refeição
+export const MAX_CAMINHADAS = 3;
+export const XP_SONO = 5; // uma vez por dia
+export const XP_MEDIDA = 5; // peso/cintura, uma vez por dia
+export const XP_INSULINA = 5; // uma vez por dia, qualquer que seja o número de aplicações
+
 export interface AtividadeDoDia {
   /** Treinos concluídos + 1 se houve pausa legítima. Limitado a 2. */
   sessoes: number;
@@ -102,6 +111,11 @@ export interface AtividadeDoDia {
   garantido: boolean;
   /** Sequência contando com este dia. */
   sequencia: number;
+  refeicoes?: number;
+  caminhadas?: number;
+  sono?: boolean;
+  medida?: boolean;
+  insulina?: boolean;
 }
 
 export function bonusDeSequencia(sequencia: number): number {
@@ -117,6 +131,12 @@ export function xpDoDia(a: AtividadeDoDia) {
     agua: xpAgua(a.aguaMl, a.metaAguaMl),
     dia: a.garantido ? XP_DIA_GARANTIDO : 0,
     bonus: a.garantido ? bonusDeSequencia(a.sequencia) : 0,
+    habitos:
+      Math.min(a.refeicoes ?? 0, MAX_REFEICOES) * XP_POR_REFEICAO +
+      Math.min(a.caminhadas ?? 0, MAX_CAMINHADAS) * XP_POR_CAMINHADA +
+      (a.sono ? XP_SONO : 0) +
+      (a.medida ? XP_MEDIDA : 0) +
+      (a.insulina ? XP_INSULINA : 0),
   };
   const total = Object.values(partes).reduce((s, v) => s + v, 0);
   return { total, partes };

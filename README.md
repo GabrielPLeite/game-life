@@ -12,6 +12,10 @@ App pessoal de hábitos de saúde com gamificação. Funciona offline, instala n
 - Painel "se você não treinar hoje" com o que está em jogo
 - Registro de glicose (o valor nunca muda o XP)
 - Registro de água em um toque, com meta diária ajustável
+- Hábitos: refeições com carboidrato estimado, caminhada pós-refeição, sono, peso e cintura, insulina aplicada (só registro, sem sugestão de dose)
+- Jogo: missões semanais, chefe da semana, conquistas de consistência, recompensas reais por nível e plano progressivo de esteira com semana leve
+- Análises: média, variação e % de medições no alvo, gráfico por dia, comparações (treino, caminhada, sono), revisão semanal
+- Relatório para o médico (imprimir ou salvar em PDF), exportação em CSV e restauração de backup
 - XP e níveis com regras visíveis no próprio app
 - Backup dos dados em arquivo JSON
 
@@ -20,6 +24,8 @@ App pessoal de hábitos de saúde com gamificação. Funciona offline, instala n
 | Arquivo | O que faz |
 | --- | --- |
 | `src/regras.ts` | Regras do jogo (XP, sequência, checagem de glicose, níveis). Funções puras, com testes em `regras.test.ts` |
+| `src/jogo.ts` | Missões, chefe, conquistas e plano de esteira. Testes em `jogo.test.ts` |
+| `src/analises.ts` | Estatísticas de glicose, comparações e CSV |
 | `src/resumo.ts` | Junta os registros do banco e aplica as regras. Testes em `resumo.test.ts` |
 | `src/db.ts` | Banco de dados local (IndexedDB via Dexie) |
 | `src/App.tsx` | A tela principal |

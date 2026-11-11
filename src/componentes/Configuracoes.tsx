@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { diaLogico, ML_POR_COPO } from "../regras";
-import { exportarTudo, salvarConfiguracoes, type Configuracoes as Config } from "../db";
+import { exportarTudo, restaurarBackup, salvarConfiguracoes, type Configuracoes as Config } from "../db";
 import { litros } from "./Agua";
 
 /** Baixa um arquivo JSON com todos os dados do app. */
@@ -12,6 +12,18 @@ async function baixarBackup() {
   a.download = `game-life-backup-${diaLogico()}.json`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+/** Lê um arquivo de backup e substitui os dados deste aparelho, depois de confirmar. */
+async function restaurar(arquivo: File) {
+  try {
+    const dados = JSON.parse(await arquivo.text());
+    if (!window.confirm("Restaurar este backup? Os dados atuais deste aparelho serão substituídos pelos do arquivo.")) return;
+    await restaurarBackup(dados);
+    window.alert("Backup restaurado.");
+  } catch (e) {
+    window.alert(e instanceof Error && e.message.includes("Game Life") ? e.message : "Não consegui ler este arquivo.");
+  }
 }
 
 /** Linha com botões − e + para ajustar um número. */
@@ -84,13 +96,34 @@ export default function Configuracoes({ configuracoes: c, metaAguaHoje }: { conf
             onMenos={() => salvar({ descansosPorSemana: c.descansosPorSemana - 1 })}
             onMais={() => salvar({ descansosPorSemana: c.descansosPorSemana + 1 })}
           />
+          <Ajuste
+            rotulo="Esteira na 1ª semana (min)"
+            valor={`${c.esteiraBaseMin}`}
+            podeMenos={c.esteiraBaseMin > 10}
+            podeMais={c.esteiraBaseMin < 60}
+            onMenos={() => salvar({ esteiraBaseMin: c.esteiraBaseMin - 5 })}
+            onMais={() => salvar({ esteiraBaseMin: c.esteiraBaseMin + 5 })}
+          />
           <p className="nota">Valores de glicose em mg/dL. Use os limites definidos com seu médico; o app não sugere valores.</p>
           <button className="discreto" onClick={() => void baixarBackup()}>
             Baixar backup dos meus dados
           </button>
+          <label className="discreto botao-arquivo">
+            Restaurar a partir de um backup
+            <input
+              type="file"
+              accept="application/json,.json"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void restaurar(f);
+                e.target.value = "";
+              }}
+            />
+          </label>
           <p className="nota">
             Regras de XP: treino ou pausa legítima 40 (até 2 por dia) · checagem antes do treino 10 · glicose registrada 5 (até 6) · água 2 a cada 250 ml + 10 na meta · dia garantido 20 · bônus de
-            sequência +2 por dia (até +20). O dia vira às 3h. Seus dados ficam só neste aparelho.
+            sequência +2 por dia (até +20) · refeição 5 (até 4) · caminhada pós-refeição 10 (até 3) · sono, peso e insulina 5 cada por dia · missão da semana 50 · chefe 150. O dia vira às 3h. Seus dados
+            ficam só neste aparelho.
           </p>
         </>
       )}
