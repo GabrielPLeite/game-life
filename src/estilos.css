@@ -1,0 +1,88 @@
+:root {
+  --fundo: #0f172a;
+  --cartao: #1e293b;
+  --borda: #334155;
+  --texto: #f1f5f9;
+  --suave: #94a3b8;
+  --agua: #38bdf8;
+  --xp: #facc15;
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--fundo);
+  color: var(--texto);
+  -webkit-tap-highlight-color: transparent;
+}
+
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+  display: grid;
+  gap: 16px;
+}
+
+h1 { font-size: 1.25rem; margin: 0 0 12px; }
+h2 { font-size: 1.05rem; margin: 0; }
+
+.nivel-linha, .cartao-topo, .ajuste {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.nivel-linha { margin-bottom: 6px; }
+.nivel-linha span, .xp-dia { color: var(--xp); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+
+.barra { height: 8px; background: var(--borda); border-radius: 999px; overflow: hidden; }
+.barra.grande { height: 16px; }
+.barra-cheia { height: 100%; border-radius: 999px; transition: width 0.25s ease; }
+.barra-cheia.xp { background: var(--xp); }
+.barra-cheia.agua { background: var(--agua); }
+
+.cartao {
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.total { font-size: 2.25rem; font-weight: 700; margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+.total small { font-size: 1rem; font-weight: 400; color: var(--suave); }
+.situacao, .rodape { margin: 0; color: var(--suave); font-size: 0.9rem; line-height: 1.4; }
+.rodape { font-size: 0.8rem; }
+
+.botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+button {
+  font: inherit;
+  color: var(--texto);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: transparent;
+  min-height: 48px;
+  cursor: pointer;
+}
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.4; cursor: default; }
+
+button.principal {
+  min-height: 64px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  background: var(--agua);
+  border-color: var(--agua);
+  color: #082f49;
+}
+button.discreto { color: var(--suave); }
+
+.passos { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.passos button { width: 48px; font-size: 1.25rem; }
+.passos strong { white-space: nowrap; min-width: 4.5ch; text-align: center; font-variant-numeric: tabular-nums; }
