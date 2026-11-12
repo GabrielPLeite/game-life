@@ -325,3 +325,19 @@ button.tela-cheia.subiu { border: 0; border-radius: 0; align-content: center; ga
 @keyframes desce { 0% { opacity: 0; transform: translate(-50%, -30px); } 12%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -10px); } }
 @media (prefers-reduced-motion: reduce) { .aviso-golpe { animation: none; } }
 .aviso-golpe > span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+/* ---------- Sensor (app Glicose) ---------- */
+.sensor { display: grid; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--borda); }
+a.botao-link { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border: 1px solid var(--glicose); border-radius: 12px; color: var(--glicose); font-weight: 600; text-decoration: none; }
+a.botao-link:active { transform: scale(0.98); }
+.situacao a.botao-link { display: inline; border: 0; min-height: 0; text-decoration: underline; font-weight: 600; }
+.aviso-sensor { position: fixed; z-index: 16; top: calc(10px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: min(448px, calc(100vw - 32px));
+  padding: 10px 14px; border-radius: 14px; background: #2e1065f5; border: 1px solid var(--glicose); box-shadow: 0 8px 24px #000a; font-size: 0.9rem; line-height: 1.4; text-align: left; }
+.barras-alvo { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.8rem; }
+.barras-alvo li { display: grid; grid-template-columns: 42px 1fr 48px; align-items: center; gap: 8px; }
+.barras-alvo li > :last-child { text-align: right; }
+.barra-alvo { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--borda); }
+.barra-alvo.vazia { background: none; height: auto; color: var(--suave); }
+.barra-alvo .abaixo { background: var(--perigo); }
+.barra-alvo .no-alvo { background: var(--treino); }
+.barra-alvo .acima { background: var(--atencao); }

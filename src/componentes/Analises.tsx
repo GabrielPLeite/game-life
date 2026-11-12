@@ -4,6 +4,7 @@ import type { Configuracoes, Habito, RegistroAgua, RegistroGlicose, RegistroTrei
 import { diaLogico, inicioDaSemana, somarDias } from "../regras";
 import type { Resumo } from "../resumo";
 import Relatorio from "./Relatorio";
+import { CartaoSensor } from "./Sensor";
 
 export interface DadosBrutos {
   configuracoes: Configuracoes;
@@ -65,6 +66,7 @@ export default function Analises({ dados, resumo }: { dados: DadosBrutos; resumo
         </p>
       </section>
 
+      <CartaoSensor dias={dias} />
       <Correlacoes dados={dados} hoje={hoje} />
       <RevisaoSemanal resumo={resumo} glicose={glicose} hoje={hoje} c={c} />
 

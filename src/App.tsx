@@ -15,6 +15,7 @@ import Configuracoes from "./componentes/Configuracoes";
 import Batalha, { AvisoDeGolpe, useGolpe } from "./componentes/Batalha";
 import CriarHeroi from "./componentes/CriarHeroi";
 import { tituloDoNivel } from "./rpg";
+import { AvisoSensor, useImportarSensor } from "./componentes/Sensor";
 
 /** Atualiza o "dia do jogo" a cada minuto, para o app virar o dia sozinho às 3h. */
 function useDiaLogico() {
@@ -59,6 +60,8 @@ function useAba(): [Aba, (a: Aba) => void] {
 export default function App() {
   const hoje = useDiaLogico();
   const [aba, setAba] = useAba();
+  // Recebe as leituras quando o app Glicose devolve os dados (botão "Puxar do sensor").
+  const [avisoSensor, fecharAvisoSensor] = useImportarSensor();
 
   // Cria o registro do dia assim que o app abre.
   useEffect(() => {
@@ -67,7 +70,7 @@ export default function App() {
 
   // useLiveQuery relê o banco sozinho sempre que algo muda.
   const dados = useLiveQuery(async () => {
-    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras] = await Promise.all([
+    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes] = await Promise.all([
       lerConfiguracoes(),
       db.dias.toArray(),
       db.agua.toArray(),
@@ -77,8 +80,9 @@ export default function App() {
       db.habitos.toArray(),
       db.recompensas.toArray(),
       db.compras.toArray(),
+      db.sincronizacoes.toArray(),
     ]);
-    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras };
+    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes };
   });
 
   const resumo = dados ? montarResumo(dados, hoje) : undefined;
@@ -106,6 +110,7 @@ export default function App() {
   return (
     <>
       <AvisoDeGolpe golpe={golpe} resumo={resumo} />
+      <AvisoSensor texto={avisoSensor} onFechar={fecharAvisoSensor} />
       <main>
         {aba !== "analises" && <Cabecalho resumo={resumo} />}
         {aba === "hoje" && (

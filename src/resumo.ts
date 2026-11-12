@@ -1,6 +1,6 @@
 // Junta todos os registros e aplica as regras do jogo.
 // Função pura: recebe os dados do banco e devolve tudo o que a tela precisa mostrar.
-import type { CompraLoja, Configuracoes, Dia, Habito, Marcacao, Recompensa, RegistroAgua, RegistroGlicose, RegistroTreino, TipoTreino } from "./db";
+import type { CompraLoja, Configuracoes, Dia, Habito, Marcacao, Recompensa, RegistroAgua, RegistroGlicose, RegistroTreino, SincronizacaoSensor, TipoTreino } from "./db";
 import { agruparPorSemana, chefeDaSemana, conquistas, missoesDaSemana, planoEsteira, xpDaSemana, type DiaResumido } from "./jogo";
 import {
   calcularSequencia,
@@ -22,6 +22,8 @@ export interface Dados {
   habitos?: Habito[];
   recompensas?: Recompensa[];
   compras?: CompraLoja[];
+  /** Vezes que você puxou dados do app Glicose. Cada dia com pelo menos uma vale como uma medição de glicose. */
+  sincronizacoes?: SincronizacaoSensor[];
 }
 
 /** Agrupa registros ativos (não excluídos) por dia. */
@@ -40,6 +42,9 @@ export function montarResumo(d: Dados, hoje: string) {
   const treinos = porDia(d.treinos);
   const marcacoes = porDia(d.marcacoes);
   const habitos = porDia(d.habitos ?? []);
+  const sincronizacoes = porDia(d.sincronizacoes ?? []);
+  /** Puxar do sensor vale como UMA medição no dia (o XP vem de olhar, nunca do valor). */
+  const sensorNoDia = (dia: string) => ((sincronizacoes.get(dia) ?? []).length > 0 ? 1 : 0);
   const habitosDe = <T extends Habito["tipo"]>(dia: string, tipo: T) =>
     (habitos.get(dia) ?? []).filter((h): h is Extract<Habito, { tipo: T }> => h.tipo === tipo);
   /** Caminhada pós-refeição só conta a partir de 10 minutos. */
@@ -67,7 +72,7 @@ export function montarResumo(d: Dados, hoje: string) {
   const atividadeDe = (dia: string, sequenciaDoDia: number) => ({
     sessoes: concluidos(dia).length + (pausaDe(dia) ? 1 : 0),
     checagens: (treinos.get(dia) ?? []).filter((t) => t.glicoseId !== undefined).length,
-    glicoses: (glicose.get(dia) ?? []).length,
+    glicoses: (glicose.get(dia) ?? []).length + sensorNoDia(dia),
     aguaMl: (agua.get(dia) ?? []).reduce((s, r) => s + r.ml, 0),
     metaAguaMl: metaDoDia.get(dia) ?? d.configuracoes.metaAguaMl,
     garantido: situacaoDe(dia) !== "vazio",
@@ -141,6 +146,7 @@ export function montarResumo(d: Dados, hoje: string) {
 
   const treinosHoje = treinos.get(hoje) ?? [];
   const glicoseHoje = glicose.get(hoje) ?? [];
+  const ultimaSincronizacao = (d.sincronizacoes ?? []).at(-1);
   const valorGlicose = new Map(d.glicose.map((g) => [g.id, g.valor]));
 
   const nivel = nivelDeXp(xpTotal);
@@ -159,7 +165,11 @@ export function montarResumo(d: Dados, hoje: string) {
     ].slice(0, 2);
     sessoes.forEach((x) => ev(x.tipo, x.chave, x.quando));
     (treinos.get(dia) ?? []).filter((t) => t.glicoseId !== undefined).slice(0, 2).forEach((t) => ev("checagem", `checagem-${t.id}`, t.criadoEm));
-    (glicose.get(dia) ?? []).slice(0, 6).forEach((g) => ev("glicose", `glicose-${g.id}`, g.criadoEm));
+    const golpesDeGlicose = [
+      ...(glicose.get(dia) ?? []).map((g) => ({ chave: `glicose-${g.id}`, quando: g.criadoEm })),
+      ...(sincronizacoes.get(dia) ?? []).slice(0, 1).map((x) => ({ chave: `sensor-${x.id}`, quando: x.criadoEm })),
+    ];
+    golpesDeGlicose.slice(0, 6).forEach((g) => ev("glicose", g.chave, g.quando));
     habitosDe(dia, "refeicao").slice(0, 4).forEach((h) => ev("refeicao", `habito-${h.id}`, h.criadoEm));
     caminhadasValidas(dia).slice(0, 3).forEach((h) => ev("caminhada", `habito-${h.id}`, h.criadoEm));
     habitosDe(dia, "sono").slice(0, 1).forEach((h) => ev("sono", `habito-${h.id}`, h.criadoEm));
@@ -199,9 +209,12 @@ export function montarResumo(d: Dados, hoje: string) {
       treinosConcluidos: concluidos(hoje),
       treinoEmAndamento: treinosHoje.find((t) => !t.concluidoEm && !t.adiadoEm),
       glicoses: glicoseHoje,
+      /** Puxou dados do sensor hoje (vale como uma medição de glicose no XP). */
+      sensorHoje: sensorNoDia(hoje) > 0,
       aguaMl: atividadeHoje.aguaMl,
       metaAguaMl: atividadeHoje.metaAguaMl,
     },
+    ultimaSincronizacao,
     emJogo: {
       ...seFaltarHoje(sequencia),
       xp: Math.max(0, xpSeTreinar - xpHoje.total),
