@@ -1,6 +1,7 @@
 // Banco de dados local (IndexedDB, via Dexie). Tudo fica só neste aparelho.
 // Regra geral: nada é apagado de verdade. Desfazer marca o registro com "excluidoEm".
 import Dexie, { type EntityTable } from "dexie";
+import type { LeituraSensor, Tendencia } from "./sensor";
 import { META_AGUA_PADRAO_ML, diaLogico, turnoDoHorario, type LimitesGlicose, type ResultadoChecagem } from "./regras";
 
 /** De onde veio um registro. Hoje é sempre manual; relógio e sensor entram depois. */
@@ -97,6 +98,20 @@ export interface Dia {
   metaAguaMl: number;
 }
 
+/** Cada vez que você puxou dados do app Glicose. Serve para o XP do dia e para mostrar a seta atual. */
+export interface SincronizacaoSensor {
+  id: number;
+  dia: string;
+  criadoEm: string;
+  /** Quantas leituras vieram no pacote. */
+  leituras: number;
+  tendencia: Tendencia;
+  /** Horário (ms) e valor da leitura atual no momento em que você puxou. */
+  atualTs?: number;
+  atualValor?: number;
+  servicoLigado: boolean;
+}
+
 export interface Configuracoes extends LimitesGlicose {
   id: "unica";
   metaAguaMl: number;
@@ -132,6 +147,8 @@ class Banco extends Dexie {
   habitos!: EntityTable<Habito, "id">;
   recompensas!: EntityTable<Recompensa, "id">;
   compras!: EntityTable<CompraLoja, "id">;
+  sensor!: EntityTable<LeituraSensor, "ts">;
+  sincronizacoes!: EntityTable<SincronizacaoSensor, "id">;
   dias!: EntityTable<Dia, "dia">;
   configuracoes!: EntityTable<Configuracoes, "id">;
 
@@ -167,6 +184,20 @@ class Banco extends Dexie {
       habitos: "++id, dia, tipo",
       recompensas: "++id",
       compras: "++id, itemId",
+      dias: "dia",
+      configuracoes: "id",
+    });
+    // Versão 5: leituras do sensor vindas do app Glicose (chave = horário, então puxar de novo não duplica).
+    this.version(5).stores({
+      agua: "++id, dia",
+      glicose: "++id, dia",
+      treinos: "++id, dia",
+      marcacoes: "++id, dia",
+      habitos: "++id, dia, tipo",
+      recompensas: "++id",
+      compras: "++id, itemId",
+      sensor: "ts, dia",
+      sincronizacoes: "++id, dia",
       dias: "dia",
       configuracoes: "id",
     });
@@ -220,9 +251,10 @@ export const desfazerUltimaAgua = () => desfazerUltimo(db.agua as never);
 
 // ---------- Glicose ----------
 
-export async function registrarGlicose(valor: number, momento: MomentoGlicose): Promise<number> {
+/** origem "sensor" = valor confirmado a partir da leitura do sensor (na checagem do treino). */
+export async function registrarGlicose(valor: number, momento: MomentoGlicose, origem: Origem = "manual"): Promise<number> {
   await garantirDia();
-  return db.glicose.add({ ...novo(), valor, momento } as Novo<RegistroGlicose> as RegistroGlicose);
+  return db.glicose.add({ ...novo(), origem, valor, momento } as Novo<RegistroGlicose> as RegistroGlicose);
 }
 
 export const desfazerUltimaGlicose = () => desfazerUltimo(db.glicose as never);
@@ -230,14 +262,14 @@ export const desfazerUltimaGlicose = () => desfazerUltimo(db.glicose as never);
 // ---------- Treino ----------
 
 /** Começa um treino. A glicose da checagem (se houve) é registrada junto. */
-export async function iniciarTreino(checagem: RegistroTreino["checagem"], glicose?: number): Promise<void> {
-  const glicoseId = glicose === undefined ? undefined : await registrarGlicose(glicose, "antes_treino");
+export async function iniciarTreino(checagem: RegistroTreino["checagem"], glicose?: number, origem: Origem = "manual"): Promise<void> {
+  const glicoseId = glicose === undefined ? undefined : await registrarGlicose(glicose, "antes_treino", origem);
   await db.treinos.add({ ...novo(), turno: turnoDoHorario(), glicoseId, checagem } as Novo<RegistroTreino> as RegistroTreino);
 }
 
 /** Registra a checagem e o adiamento do treino por glicose fora da faixa. Vale como pausa legítima. */
-export async function adiarTreino(glicose: number, checagem: ResultadoChecagem): Promise<void> {
-  const glicoseId = await registrarGlicose(glicose, "antes_treino");
+export async function adiarTreino(glicose: number, checagem: ResultadoChecagem, origem: Origem = "manual"): Promise<void> {
+  const glicoseId = await registrarGlicose(glicose, "antes_treino", origem);
   await db.treinos.add({
     ...novo(),
     turno: turnoDoHorario(),
@@ -299,13 +331,28 @@ export async function excluirRecompensa(id: number): Promise<void> {
   await db.recompensas.update(id, { excluidoEm: agoraIso() });
 }
 
+// ---------- Sensor (app Glicose) ----------
+
+/** Guarda o que veio do app Glicose. Leituras com o mesmo horário são substituídas, nunca duplicadas. */
+export async function guardarPacoteSensor(leituras: LeituraSensor[], info: Omit<SincronizacaoSensor, "id" | "dia" | "criadoEm" | "leituras">): Promise<number> {
+  await garantirDia();
+  await db.transaction("rw", db.sensor, db.sincronizacoes, async () => {
+    await db.sensor.bulkPut(leituras);
+    await db.sincronizacoes.add({ dia: diaLogico(), criadoEm: agoraIso(), leituras: leituras.length, ...info } as SincronizacaoSensor);
+  });
+  return leituras.length;
+}
+
+/** Leituras do sensor a partir de um horário (ms). */
+export const leiturasDoSensorDesde = (ts: number) => db.sensor.where("ts").aboveOrEqual(ts).toArray();
+
 // ---------- Backup ----------
 
 /** Junta todos os dados em um objeto, para o backup em arquivo. */
 export async function exportarTudo() {
   return {
     app: "game-life",
-    versao: 4,
+    versao: 5,
     exportadoEm: agoraIso(),
     configuracoes: await lerConfiguracoes(),
     dias: await db.dias.toArray(),
@@ -316,6 +363,8 @@ export async function exportarTudo() {
     habitos: await db.habitos.toArray(),
     recompensas: await db.recompensas.toArray(),
     compras: await db.compras.toArray(),
+    sensor: await db.sensor.toArray(),
+    sincronizacoes: await db.sincronizacoes.toArray(),
   };
 }
 
@@ -323,11 +372,11 @@ export type Backup = Awaited<ReturnType<typeof exportarTudo>>;
 
 /**
  * Restaura um backup: apaga os dados atuais deste aparelho e grava os do arquivo.
- * Aceita backups das versões 1, 2 e 3 (tabelas que não existiam ficam vazias).
+ * Aceita backups das versões 1 a 4 (tabelas que não existiam ficam vazias).
  */
 export async function restaurarBackup(dados: Partial<Backup> & { app?: string }): Promise<void> {
   if (dados.app !== "game-life") throw new Error("Este arquivo não é um backup do Game Life.");
-  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.dias, db.configuracoes];
+  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.sensor, db.sincronizacoes, db.dias, db.configuracoes];
   await db.transaction("rw", tabelas, async () => {
     await Promise.all(tabelas.map((t) => t.clear()));
     await db.agua.bulkPut(dados.agua ?? []);
@@ -337,6 +386,8 @@ export async function restaurarBackup(dados: Partial<Backup> & { app?: string })
     await db.habitos.bulkPut(dados.habitos ?? []);
     await db.recompensas.bulkPut(dados.recompensas ?? []);
     await db.compras.bulkPut(dados.compras ?? []);
+    await db.sensor.bulkPut(dados.sensor ?? []);
+    await db.sincronizacoes.bulkPut(dados.sincronizacoes ?? []);
     await db.dias.bulkPut(dados.dias ?? []);
     if (dados.configuracoes) await db.configuracoes.put({ ...CONFIG_PADRAO, ...dados.configuracoes, id: "unica" });
   });

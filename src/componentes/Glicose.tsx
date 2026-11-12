@@ -2,6 +2,7 @@ import { useState } from "react";
 import { desfazerUltimaGlicose, registrarGlicose, type Configuracoes, type MomentoGlicose } from "../db";
 import { MAX_GLICOSES, XP_POR_GLICOSE } from "../regras";
 import type { Resumo } from "../resumo";
+import { BlocoSensor } from "./Sensor";
 
 const NOMES_MOMENTO: Record<MomentoGlicose, string> = {
   jejum: "Jejum",
@@ -33,7 +34,8 @@ export default function Glicose({ resumo, configuracoes }: { resumo: Resumo; con
   const valor = Number(texto);
   const valido = texto !== "" && valor >= 20 && valor <= 600;
   const registros = resumo.hoje.glicoses;
-  const xp = Math.min(registros.length, MAX_GLICOSES) * XP_POR_GLICOSE;
+  // Puxar do sensor no dia vale como uma medição.
+  const xp = Math.min(registros.length + (resumo.hoje.sensorHoje ? 1 : 0), MAX_GLICOSES) * XP_POR_GLICOSE;
 
   // Faixa-alvo só para informação (não pontua).
   const faixa = (v: number) => (v < configuracoes.alvoMinimo ? "abaixo do alvo" : v > configuracoes.alvoMaximo ? "acima do alvo" : "no alvo");
@@ -46,6 +48,7 @@ export default function Glicose({ resumo, configuracoes }: { resumo: Resumo; con
           +{xp} de {MAX_GLICOSES * XP_POR_GLICOSE} XP
         </span>
       </div>
+      <BlocoSensor resumo={resumo} />
       <form
         className="etapa"
         onSubmit={(e) => {
@@ -84,6 +87,7 @@ export default function Glicose({ resumo, configuracoes }: { resumo: Resumo; con
               <li key={g.id}>
                 <span>
                   <strong>{g.valor}</strong> mg/dL · {NOMES_MOMENTO[g.momento]}
+                  {g.origem === "sensor" && " · sensor"}
                 </span>
                 <span className="suave">
                   {hora(g.criadoEm)} · {faixa(g.valor)}
@@ -96,7 +100,7 @@ export default function Glicose({ resumo, configuracoes }: { resumo: Resumo; con
           </button>
         </>
       )}
-      <p className="nota">Registrar dá XP, qualquer que seja o valor.</p>
+      <p className="nota">Registrar dá XP, qualquer que seja o valor. Puxar do sensor vale como uma medição por dia.</p>
     </section>
   );
 }

@@ -36,6 +36,15 @@ describe("montarResumo", () => {
     expect(r.hoje.treinoEmAndamento).toBeUndefined();
   });
 
+  it("puxar do sensor vale uma medição por dia, quantas vezes for e qualquer que seja o valor", () => {
+    const d = vazio();
+    const sinc = (id: number, valor: number) => ({ id, dia: "2026-11-11", criadoEm: "", leituras: 100, tendencia: 3 as const, atualValor: valor, servicoLigado: true });
+    d.sincronizacoes = [sinc(1, 250), sinc(2, 55), sinc(3, 120)];
+    const r = montarResumo(d, "2026-11-11");
+    expect(r.xpHoje.partes.glicose).toBe(5);
+    expect(r.hoje.sensorHoje).toBe(true);
+  });
+
   it("registros excluídos não contam", () => {
     const d = vazio();
     d.treinos.push({ ...base, id: 1, dia: "2026-11-11", turno: "noite", checagem: "sem_checagem", concluidoEm: "x", excluidoEm: "y" });

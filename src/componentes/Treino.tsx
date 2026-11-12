@@ -9,10 +9,13 @@ import {
   marcarDia,
   type Configuracoes,
   type MotivoPausa,
+  type Origem,
   type TipoTreino,
 } from "../db";
 import { classificarGlicose, type ResultadoChecagem } from "../regras";
 import type { Resumo } from "../resumo";
+import { LEITURA_RECENTE_MIN, NOMES_TENDENCIA, SETAS, leituraRecente, type Tendencia } from "../sensor";
+import { BotaoPuxar, minutosAtras, useLeiturasSensor } from "./Sensor";
 
 export const NOMES_TIPO: Record<TipoTreino, string> = {
   esteira: "Esteira",
@@ -41,7 +44,14 @@ function useRelogio() {
   }, []);
 }
 
-type Etapa = { tipo: "inicio" } | { tipo: "checando" } | { tipo: "resultado"; valor: number; resultado: ResultadoChecagem } | { tipo: "sem_treino" };
+type Etapa = { tipo: "inicio" } | { tipo: "checando" } | { tipo: "resultado"; valor: number; resultado: ResultadoChecagem; origem: Origem } | { tipo: "sem_treino" };
+
+/** Leitura do sensor boa para a checagem (até 15 min), com a seta se ela for a leitura atual de quando você puxou. */
+export interface LeituraParaChecagem {
+  valor: number;
+  ts: number;
+  tendencia: Tendencia;
+}
 
 export default function Treino({ resumo, configuracoes }: { resumo: Resumo; configuracoes: Configuracoes }) {
   useRelogio();
@@ -49,6 +59,14 @@ export default function Treino({ resumo, configuracoes }: { resumo: Resumo; conf
   const { hoje } = resumo;
   const emAndamento = hoje.treinoEmAndamento;
   const voltar = () => setEtapa({ tipo: "inicio" });
+  const recentes = useLeiturasSensor(Date.now() - (LEITURA_RECENTE_MIN + 5) * 60 * 1000) ?? [];
+  const recente = leituraRecente(recentes);
+  const sinc = resumo.ultimaSincronizacao;
+  const doSensor: LeituraParaChecagem | undefined = recente && {
+    valor: recente.valor,
+    ts: recente.ts,
+    tendencia: sinc && sinc.atualTs === recente.ts ? sinc.tendencia : 0,
+  };
 
   return (
     <section className="cartao">
@@ -83,14 +101,15 @@ export default function Treino({ resumo, configuracoes }: { resumo: Resumo; conf
         />
       ) : etapa.tipo === "checando" ? (
         <Checagem
+          sensor={doSensor}
           onCancelar={voltar}
-          onChecar={(valor) => {
+          onChecar={(valor, origem) => {
             const resultado = classificarGlicose(valor, configuracoes);
             if (resultado === "liberado") {
-              void iniciarTreino("liberado", valor);
+              void iniciarTreino("liberado", valor, origem);
               voltar();
             } else {
-              setEtapa({ tipo: "resultado", valor, resultado });
+              setEtapa({ tipo: "resultado", valor, resultado, origem });
             }
           }}
           onSemChecar={() => {
@@ -133,20 +152,52 @@ export default function Treino({ resumo, configuracoes }: { resumo: Resumo; conf
   );
 }
 
-/** Passo 1: pergunta a glicose antes de treinar. */
-function Checagem({ onChecar, onCancelar, onSemChecar }: { onChecar: (v: number) => void; onCancelar: () => void; onSemChecar: () => void }) {
-  const [texto, setTexto] = useState("");
+/**
+ * Passo 1: pergunta a glicose antes de treinar.
+ * Se o sensor tem leitura de até 15 min, o campo já vem preenchido e você só confirma (ou corrige).
+ */
+function Checagem({
+  sensor,
+  onChecar,
+  onCancelar,
+  onSemChecar,
+}: {
+  sensor?: LeituraParaChecagem;
+  onChecar: (v: number, origem: Origem) => void;
+  onCancelar: () => void;
+  onSemChecar: () => void;
+}) {
+  const [texto, setTexto] = useState(sensor ? String(sensor.valor) : "");
   const valor = Number(texto);
   const valido = texto !== "" && valor >= 20 && valor <= 600;
+  // Só conta como "do sensor" se você não mudou o número.
+  const origem: Origem = sensor && valor === sensor.valor ? "sensor" : "manual";
+  const caindo = sensor && origem === "sensor" && (sensor.tendencia === 1 || sensor.tendencia === 2);
   return (
     <form
       className="etapa"
       onSubmit={(e) => {
         e.preventDefault();
-        if (valido) onChecar(valor);
+        if (valido) onChecar(valor, origem);
       }}
     >
       <label htmlFor="glicose-treino">Qual sua glicose agora? (mg/dL)</label>
+      {sensor ? (
+        <p className="situacao">
+          Preenchido com o sensor: {sensor.valor} mg/dL {SETAS[sensor.tendencia]} há {minutosAtras(sensor.ts)} min
+          {sensor.tendencia > 0 && ` (${NOMES_TENDENCIA[sensor.tendencia]})`}. Confirme ou corrija.
+        </p>
+      ) : (
+        <p className="situacao">
+          Sem leitura do sensor nos últimos {LEITURA_RECENTE_MIN} min. Digite a medição ou <BotaoPuxar texto="puxe do sensor" />
+        </p>
+      )}
+      {caindo && (
+        <div className="aviso atencao">
+          <strong>A glicose está caindo.</strong>
+          <span>Com seta para baixo, o valor pode estar menor daqui a pouco. Siga a orientação do seu médico; na dúvida, confira na ponta do dedo.</span>
+        </div>
+      )}
       <input id="glicose-treino" className="numero" inputMode="numeric" pattern="[0-9]*" autoFocus value={texto} onChange={(e) => setTexto(e.target.value.replace(/\D/g, ""))} placeholder="ex.: 120" />
       <button className="principal" type="submit" disabled={!valido}>
         Checar
@@ -164,10 +215,10 @@ function Checagem({ onChecar, onCancelar, onSemChecar }: { onChecar: (v: number)
 }
 
 /** Passo 2 quando a glicose não está liberada: avisa e deixa a decisão com você. */
-function ResultadoForaDaFaixa({ etapa, configuracoes, onFim }: { etapa: { valor: number; resultado: ResultadoChecagem }; configuracoes: Configuracoes; onFim: () => void }) {
-  const { valor, resultado } = etapa;
+function ResultadoForaDaFaixa({ etapa, configuracoes, onFim }: { etapa: { valor: number; resultado: ResultadoChecagem; origem: Origem }; configuracoes: Configuracoes; onFim: () => void }) {
+  const { valor, resultado, origem } = etapa;
   const adiar = () => {
-    void adiarTreino(valor, resultado);
+    void adiarTreino(valor, resultado, origem);
     onFim();
   };
 
@@ -179,7 +230,7 @@ function ResultadoForaDaFaixa({ etapa, configuracoes, onFim }: { etapa: { valor:
         <button
           className="principal"
           onClick={() => {
-            void iniciarTreino("comer_antes", valor);
+            void iniciarTreino("comer_antes", valor, origem);
             onFim();
           }}
         >

@@ -3,6 +3,8 @@ import { estatisticasGlicose } from "../analises";
 import { diaLogico } from "../regras";
 import type { Resumo } from "../resumo";
 import { diasDoPeriodo, type DadosBrutos } from "./Analises";
+import { useSensorDoPeriodo } from "./Sensor";
+import { ALVO_SENSOR_MAX, ALVO_SENSOR_MIN } from "../sensor";
 
 const ativos = <T extends { excluidoEm?: string }>(xs: T[]) => xs.filter((x) => !x.excluidoEm);
 const data = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
@@ -17,6 +19,8 @@ export default function Relatorio({ dados, onFechar }: { dados: DadosBrutos; res
   const dias = diasDoPeriodo(hoje, periodo);
   const dentro = <T extends { dia: string }>(xs: T[]) => xs.filter((x) => x.dia >= dias[0] && x.dia <= hoje);
   const c = dados.configuracoes;
+  const sensor = useSensorDoPeriodo(dias);
+  const horaMs = (ms: number) => new Date(ms).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
   const glicose = dentro(ativos(dados.glicose)).sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
   const est = estatisticasGlicose(glicose.map((g) => g.valor), c.alvoMinimo, c.alvoMaximo);
@@ -55,7 +59,7 @@ export default function Relatorio({ dados, onFechar }: { dados: DadosBrutos; res
       <article className="folha">
         <h1>Relatório de acompanhamento</h1>
         <p>
-          Período: {data(dias[0])} a {data(hoje)} ({periodo} dias) · Gerado pelo app pessoal Game Life com registros manuais.
+          Período: {data(dias[0])} a {data(hoje)} ({periodo} dias) · Gerado pelo app pessoal Game Life com registros manuais{sensor.leituras.length > 0 && " e leituras do sensor FreeStyle Libre"}.
         </p>
         <p>Paciente: ____________________________</p>
 
@@ -87,6 +91,44 @@ export default function Relatorio({ dados, onFechar }: { dados: DadosBrutos; res
           </tbody>
         </table>
         <p className="obs">Percentuais calculados sobre medições pontuais, não sobre tempo contínuo.</p>
+
+        {sensor.leituras.length > 0 && (
+          <>
+            <h2>Sensor contínuo (FreeStyle Libre 2 Plus, via LibreLinkUp)</h2>
+            <table>
+              <tbody>
+                <tr>
+                  <th>
+                    Tempo no alvo {ALVO_SENSOR_MIN}–{ALVO_SENSOR_MAX}
+                  </th>
+                  <td>{sensor.total.noAlvoPct ?? "—"}%</td>
+                  <th>Média</th>
+                  <td>{sensor.total.media ?? "—"} mg/dL</td>
+                </tr>
+                <tr>
+                  <th>Abaixo de {ALVO_SENSOR_MIN}</th>
+                  <td>{sensor.total.abaixoPct ?? "—"}%</td>
+                  <th>Acima de {ALVO_SENSOR_MAX}</th>
+                  <td>{sensor.total.acimaPct ?? "—"}%</td>
+                </tr>
+                <tr>
+                  <th>Tempo com dados</th>
+                  <td>{sensor.total.coberturaPct}% do período</td>
+                  <th>Episódios abaixo de {ALVO_SENSOR_MIN} (15 min+)</th>
+                  <td>{sensor.episodios.length}</td>
+                </tr>
+              </tbody>
+            </table>
+            {sensor.episodios.length > 0 && (
+              <p className="obs">
+                Episódios: {sensor.episodios.map((e) => `${data(diaLogico(new Date(e.inicio)))} ${horaMs(e.inicio)}–${horaMs(e.fim)} (mín. ${e.minimo})`).join(" · ")}
+              </p>
+            )}
+            <p className="obs">
+              Percentuais por tempo, considerando só os períodos com leitura. Leituras do LibreLinkUp coletadas por app próprio; podem ter atraso ou lacunas em relação ao app oficial.
+            </p>
+          </>
+        )}
 
         <h2>Hipoglicemias registradas (abaixo de {c.alvoMinimo} mg/dL)</h2>
         {hipos.length === 0 ? (
