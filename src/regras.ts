@@ -177,6 +177,8 @@ export function calcularSequencia(
   primeiroDia: string,
   hoje: string,
   situacaoDe: (dia: string) => SituacaoDia,
+  /** Congelamentos comprados na loja naquele dia (Poção de Gelo). */
+  compradosEm: (dia: string) => number = () => 0,
 ): EstadoSequencia {
   const dias: DiaDaSequencia[] = [];
   let sequencia = 0;
@@ -187,6 +189,7 @@ export function calcularSequencia(
   for (let dia = primeiroDia; dia <= hoje; dia = somarDias(dia, 1)) {
     const situacao = situacaoDe(dia);
     let resultado: ResultadoDia;
+    congelamentos = Math.min(MAX_CONGELAMENTOS, congelamentos + compradosEm(dia));
 
     if (situacao !== "vazio") {
       resultado = situacao;
