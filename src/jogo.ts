@@ -1,6 +1,7 @@
 // Camada semanal do jogo: missões, chefe da semana, conquistas e plano de esteira.
 // Funções puras: recebem números já calculados por dia e devolvem o estado do jogo.
 import { inicioDaSemana, somarDias } from "./regras";
+import { CHEFES } from "./rpg";
 
 /** O que aconteceu em um dia, já resumido. Base de tudo neste arquivo. */
 export interface DiaResumido {
@@ -45,7 +46,6 @@ export function missoesDaSemana(dias: DiaResumido[]): Missao[] {
 
 export const VIDA_DO_CHEFE = 100;
 export const XP_CHEFE = 150;
-const NOMES_DE_CHEFE = ["O Sofá", "A Preguiça de Segunda", "O Cansaço", "A Desculpa Perfeita", "O Despertador Ignorado", "A Rotina Quebrada"];
 
 /** Dano por ação. Um dia normal tira cerca de 20 de vida; o chefe cai em 5 a 6 dias bons. */
 export const DANO = { treino: 10, caminhada: 5, metaAgua: 3, diaGarantido: 2 };
@@ -58,8 +58,10 @@ export function chefeDaSemana(semana: string, dias: DiaResumido[]) {
   );
   // O nome muda a cada semana, sempre o mesmo para a mesma semana.
   const numero = Math.floor(Date.UTC(+semana.slice(0, 4), +semana.slice(5, 7) - 1, +semana.slice(8, 10)) / (7 * 864e5));
+  const chefe = CHEFES[numero % CHEFES.length];
   return {
-    nome: NOMES_DE_CHEFE[numero % NOMES_DE_CHEFE.length],
+    id: chefe.id,
+    nome: chefe.nome,
     vida: Math.max(0, VIDA_DO_CHEFE - dano),
     derrotado: dano >= VIDA_DO_CHEFE,
   };

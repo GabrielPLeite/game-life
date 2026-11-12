@@ -75,8 +75,19 @@ export interface Recompensa {
   id: number;
   nome: string;
   nivel: number;
+  /** Preço em ouro. Se existir, a recompensa é comprada com ouro em vez de liberada por nível. */
+  custoOuro?: number;
   criadoEm: string;
   resgatadaEm?: string;
+  excluidoEm?: string;
+}
+
+/** Compra feita na loja do jogo com ouro. */
+export interface CompraLoja {
+  id: number;
+  itemId: string;
+  dia: string;
+  criadoEm: string;
   excluidoEm?: string;
 }
 
@@ -95,6 +106,9 @@ export interface Configuracoes extends LimitesGlicose {
   alvoMaximo: number;
   /** Minutos de esteira na primeira semana do plano progressivo. */
   esteiraBaseMin: number;
+  /** Herói do jogo. Vazio até você criar o personagem. */
+  heroiNome?: string;
+  heroiClasse?: "guerreiro" | "patrulheiro" | "clerigo" | "mago";
 }
 
 /** Valores iniciais, informados pelo Gabriel. Todos editáveis na tela de configurações. */
@@ -117,6 +131,7 @@ class Banco extends Dexie {
   marcacoes!: EntityTable<Marcacao, "id">;
   habitos!: EntityTable<Habito, "id">;
   recompensas!: EntityTable<Recompensa, "id">;
+  compras!: EntityTable<CompraLoja, "id">;
   dias!: EntityTable<Dia, "dia">;
   configuracoes!: EntityTable<Configuracoes, "id">;
 
@@ -140,6 +155,18 @@ class Banco extends Dexie {
       marcacoes: "++id, dia",
       habitos: "++id, dia, tipo",
       recompensas: "++id",
+      dias: "dia",
+      configuracoes: "id",
+    });
+    // Versão 4: compras da loja do RPG.
+    this.version(4).stores({
+      agua: "++id, dia",
+      glicose: "++id, dia",
+      treinos: "++id, dia",
+      marcacoes: "++id, dia",
+      habitos: "++id, dia, tipo",
+      recompensas: "++id",
+      compras: "++id, itemId",
       dias: "dia",
       configuracoes: "id",
     });
@@ -254,8 +281,14 @@ export async function excluirHabito(id: number): Promise<void> {
 
 // ---------- Recompensas ----------
 
-export async function criarRecompensa(nome: string, nivel: number): Promise<void> {
-  await db.recompensas.add({ nome, nivel, criadoEm: agoraIso() } as Recompensa);
+export async function criarRecompensa(nome: string, nivel: number, custoOuro?: number): Promise<void> {
+  await db.recompensas.add({ nome, nivel, custoOuro, criadoEm: agoraIso() } as Recompensa);
+}
+
+// ---------- Loja ----------
+
+export async function comprarItem(itemId: string): Promise<void> {
+  await db.compras.add({ itemId, dia: diaLogico(), criadoEm: agoraIso() } as CompraLoja);
 }
 
 export async function resgatarRecompensa(id: number): Promise<void> {
@@ -272,7 +305,7 @@ export async function excluirRecompensa(id: number): Promise<void> {
 export async function exportarTudo() {
   return {
     app: "game-life",
-    versao: 3,
+    versao: 4,
     exportadoEm: agoraIso(),
     configuracoes: await lerConfiguracoes(),
     dias: await db.dias.toArray(),
@@ -282,6 +315,7 @@ export async function exportarTudo() {
     marcacoes: await db.marcacoes.toArray(),
     habitos: await db.habitos.toArray(),
     recompensas: await db.recompensas.toArray(),
+    compras: await db.compras.toArray(),
   };
 }
 
@@ -293,7 +327,7 @@ export type Backup = Awaited<ReturnType<typeof exportarTudo>>;
  */
 export async function restaurarBackup(dados: Partial<Backup> & { app?: string }): Promise<void> {
   if (dados.app !== "game-life") throw new Error("Este arquivo não é um backup do Game Life.");
-  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.dias, db.configuracoes];
+  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.dias, db.configuracoes];
   await db.transaction("rw", tabelas, async () => {
     await Promise.all(tabelas.map((t) => t.clear()));
     await db.agua.bulkPut(dados.agua ?? []);
@@ -302,6 +336,7 @@ export async function restaurarBackup(dados: Partial<Backup> & { app?: string })
     await db.marcacoes.bulkPut(dados.marcacoes ?? []);
     await db.habitos.bulkPut(dados.habitos ?? []);
     await db.recompensas.bulkPut(dados.recompensas ?? []);
+    await db.compras.bulkPut(dados.compras ?? []);
     await db.dias.bulkPut(dados.dias ?? []);
     if (dados.configuracoes) await db.configuracoes.put({ ...CONFIG_PADRAO, ...dados.configuracoes, id: "unica" });
   });
