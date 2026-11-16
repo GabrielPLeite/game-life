@@ -503,3 +503,11 @@ header.heroi > * { min-width: 0; }
 .numeros.quatro div { padding: 6px 2px; }
 .numeros.quatro dt { font-size: 0.56rem; letter-spacing: 0; }
 .heroi-dados .linha { flex-wrap: wrap; gap: 2px 12px; }
+
+/* Arte nova (traço de iluminura): cenário em tons de pergaminho ao entardecer, para as figuras escuras lerem bem. */
+.sprite { image-rendering: auto; overflow: visible; }
+.arena { background: linear-gradient(180deg, #d9c796 0%, #c4ad78 62%, #85713f 62%, #6f5d33 100%); }
+.versus { color: #2b1d0e99; }
+.chefe-palco { background: radial-gradient(circle at 50% 75%, #d9c796 0%, #a88c58 55%, #6b4a2a 100%); }
+.retrato { background: #d9c796; }
+.dano-flutuante { color: #fff8e0; text-shadow: 0 2px 0 #2b1d0e, 0 0 6px #7a1f1f; }
