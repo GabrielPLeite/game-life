@@ -2,6 +2,11 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
 import App from "./App";
+// Letras do visual pergaminho, embutidas no app para funcionarem sem internet.
+import "@fontsource/im-fell-english-sc/latin-400.css";
+import "@fontsource/eb-garamond/latin-400.css";
+import "@fontsource/eb-garamond/latin-400-italic.css";
+import "@fontsource/eb-garamond/latin-700.css";
 import "./estilos.css";
 
 // Liga o modo offline e a atualização automática do app.

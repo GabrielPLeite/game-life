@@ -349,3 +349,165 @@ a.botao-link:active { transform: scale(0.98); }
 .barra-alvo .abaixo { background: var(--perigo); }
 .barra-alvo .no-alvo { background: var(--treino); }
 .barra-alvo .acima { background: var(--atencao); }
+
+/* ============================================================
+   Visual Pergaminho (escolhido pelo Gabriel em 2026-11-16).
+   Este bloco redefine cores, letras e molduras do app inteiro.
+   Para voltar ao visual antigo, basta apagar daqui até o fim.
+   ============================================================ */
+:root {
+  --fundo: #e9d9b0;
+  --cartao: #f1e3bd;
+  --borda: #8a6c44;
+  --tinta: #2b1d0e;
+  --texto: #2b1d0e;
+  --suave: #5a3d1e;
+  --vinho: #7a1f1f;
+  --creme: #f6ebcb;
+  --agua: #2f4a6b;
+  --meta: #1d5555;
+  --treino: #2f5a1f;
+  --glicose: #4a2f6b;
+  --habito: #3d3a7a;
+  --chefe: #7a1f1f;
+  --xp: #6b4a00;
+  --ouro: #6b4a00;
+  --folha-de-ouro: #c9a227;
+  --perigo: #9b1c1c;
+  --atencao: #8a5a00;
+  color-scheme: light;
+  font-family: "EB Garamond", Georgia, "Times New Roman", serif;
+  font-size: 106.25%;
+  font-variant-numeric: lining-nums;
+}
+
+/* Fibras e manchas do pergaminho, desenhadas por código (sem imagem para baixar). */
+body {
+  background-color: var(--fundo);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.035 .9' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .4 0 0 0 0 .2 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23f)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.008' numOctaves='2' seed='11'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .3 0 0 0 0 .12 0 0 0 .5 -.16'/%3E%3C/filter%3E%3Crect width='900' height='900' filter='url(%23m)'/%3E%3C/svg%3E");
+  background-attachment: fixed;
+}
+
+h1, h2, h3, .abas button, button.principal, button.chip, .cabecalho-dobravel, .versus {
+  font-family: "IM Fell English SC", "EB Garamond", Georgia, serif;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+h1 { font-size: 1.5rem; line-height: 1.1; }
+h2 { font-size: 1.25rem; }
+h3 { font-size: 0.9rem; color: var(--vinho); }
+.situacao, .nota, .suave { font-size: 0.95rem; }
+.nota { font-size: 0.85rem; font-style: italic; }
+strong { font-weight: 700; }
+
+/* Cartões: folha mais clara com moldura de tinta. */
+.cartao { background: #f4e8c8cc; border: 1.5px solid var(--tinta); border-radius: 3px; box-shadow: 0 2px 0 #5a3d1e40; }
+.numeros div { background: #f4e8c8cc; border: 1.5px solid var(--borda); border-radius: 3px; }
+.numeros dt { font-family: "IM Fell English SC", serif; }
+
+/* Herói: moldura dupla, como a capa de uma crônica. */
+header.heroi { background: #f4e8c8cc; border: 3px double var(--tinta); border-radius: 3px; }
+.retrato { background: #2b1d0e; border: 2px solid var(--folha-de-ouro); border-radius: 3px; }
+.numeros.quatro div { background: transparent; }
+.xp-texto, .xp-dia { font-style: italic; }
+
+/* Barras: caixa de tinta preenchida. */
+.barra { background: var(--creme); border: 1.5px solid var(--tinta); border-radius: 1px; height: 11px; }
+.barra.grande { height: 16px; }
+.barra-cheia { border-radius: 0; }
+.barra-cheia.xp { background: repeating-linear-gradient(90deg, var(--vinho) 0 10px, #651818 10px 11px); }
+
+/* Botões: placas com sombra dura, que afundam ao toque. */
+button { color: var(--tinta); border: 1.5px solid var(--tinta); border-radius: 3px; }
+button:active { transform: translateY(2px); }
+button.principal, button.principal.agua, button.principal.meta, button.principal.glicose, button.principal.habito {
+  color: var(--creme); border: 2px solid var(--tinta); box-shadow: 0 3px 0 var(--tinta); font-size: 1.1rem;
+}
+button.principal:active { box-shadow: 0 1px 0 var(--tinta); }
+button.principal:disabled { box-shadow: none; }
+.aviso button.principal { background: var(--tinta); color: var(--creme); }
+button.discreto { color: var(--suave); border-color: var(--borda); background: #f6ebcb80; }
+button.link { color: var(--suave); border: 0; box-shadow: none; }
+button.chip { border-radius: 3px; background: #f6ebcb80; }
+button.chip.ativo { background: var(--tinta); color: var(--creme); border-color: var(--tinta); }
+.itens button.chip { background: var(--folha-de-ouro); border-color: var(--tinta); color: var(--tinta); }
+.cabecalho-dobravel { border: 0; }
+.passos button { background: var(--creme); }
+.botao-arquivo { border: 1.5px solid var(--borda); border-radius: 3px; color: var(--suave); background: #f6ebcb80; }
+
+input.numero, input.texto { color: var(--tinta); background: var(--creme); border: 1.5px solid var(--tinta); border-radius: 3px; }
+input.numero:focus, input.texto:focus { outline: 2px solid var(--vinho); outline-offset: 1px; }
+
+/* Avisos: decretos. O de perda leva um selo de cera na margem. */
+.aviso { border-radius: 3px; border-width: 1.5px; box-shadow: 0 2px 0 #5a3d1e40; }
+.aviso.ok { background: #dfe6bf; border-color: var(--treino); }
+.aviso.perigo { background: var(--creme); border-color: var(--vinho); position: relative; padding-left: 62px; }
+.aviso.perigo::before { content: "!"; position: absolute; left: 12px; top: 12px; width: 38px; height: 38px; border-radius: 47% 53% 50% 50% / 52% 48% 52% 48%; background: var(--vinho); color: var(--creme);
+  display: grid; place-items: center; font-family: "IM Fell English SC", serif; font-size: 1.4rem; box-shadow: inset 0 0 0 3px #651818, 0 2px 3px #2b1d0e66; }
+.aviso.atencao { background: #f3dfa2; border-color: var(--atencao); }
+.aviso.perigo strong { color: var(--vinho); }
+.aviso.atencao strong { color: #5c3c00; }
+.etapa.aviso.perigo { padding-left: 62px; }
+
+.lista li, .tabela th, .tabela td { border-color: var(--borda); }
+.conquistas li { border-radius: 3px; }
+.conquistas li.obtida { border: 1.5px solid var(--folha-de-ouro); background: #c9a22726; }
+.atributos li, .itens li, .bestiario li { border-radius: 3px; background: #f6ebcb80; }
+.itens li.comprado { border-color: var(--folha-de-ouro); background: #c9a22726; }
+.atributos .mod { border-radius: 3px; }
+.grafico .faixa-alvo { fill: #2f5a1f26; }
+.barra-alvo { border-radius: 1px; }
+
+/* Arena: a cena em pixel continua, agora dentro de uma moldura de tinta. */
+.arena-cartao { background: #f4e8c8cc; }
+.arena, .chefe-palco { border-radius: 2px; border: 2px solid var(--tinta); }
+.dano-flutuante { color: #fff; }
+.dano-flutuante.critico, .dado.critico, .aviso-golpe .critico, .subiu strong { color: #f5c542; }
+
+/* Selo de cera: o dado de cada golpe vira um selo que carimba a tela. */
+.dado { border-radius: 47% 53% 50% 50% / 52% 48% 52% 48%; background: var(--vinho); color: var(--creme); font-family: "IM Fell English SC", serif; box-shadow: inset 0 0 0 3px #651818, 0 3px 4px #2b1d0e80; }
+.dado.critico { background: var(--folha-de-ouro); color: var(--tinta); box-shadow: inset 0 0 0 3px #a07f12, 0 0 16px #c9a227; }
+.dado.pequeno { border-radius: 50%; box-shadow: inset 0 0 0 2px #651818; animation: carimba 0.45s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+.aviso-golpe { background: #3b2913f5; color: var(--creme); border: 1.5px solid var(--folha-de-ouro); border-radius: 3px; }
+.aviso-golpe .ouro { color: #f5c542; }
+.aviso-sensor { background: #3b2913f5; color: var(--creme); border-radius: 3px; }
+
+/* Abas: lombada de couro com marcador de página. */
+.abas { background: #3b2913; border-top: 3px solid var(--folha-de-ouro); backdrop-filter: none; }
+.abas button { color: #e9d9b0; border: 0; border-radius: 3px; font-size: 0.85rem; }
+.abas button.ativa { background: var(--fundo); color: var(--tinta); font-weight: 400; }
+
+/* Telas cheias (criar herói, subir de nível). */
+.tela-cheia { background: #2b1d0ef2; }
+button.tela-cheia.subiu { color: var(--creme); }
+button.classe.ativa { border-color: var(--vinho); background: #7a1f1f14; box-shadow: 0 0 0 1.5px var(--vinho); }
+
+/* Animações novas: cada bloco se desenrola ao abrir a tela, e o selo carimba. */
+@keyframes desenrola { from { clip-path: inset(0 0 100% 0); opacity: 0.4; } to { clip-path: inset(0 0 0 0); opacity: 1; } }
+@keyframes carimba { 0% { transform: scale(2.4) rotate(-18deg); opacity: 0; } 60% { transform: scale(0.9) rotate(-6deg); opacity: 1; } 100% { transform: scale(1) rotate(-6deg); opacity: 1; } }
+main > * { animation: desenrola 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+main > *:nth-child(2) { animation-delay: 0.08s; }
+main > *:nth-child(3) { animation-delay: 0.16s; }
+main > *:nth-child(4) { animation-delay: 0.24s; }
+main > *:nth-child(n + 5) { animation-delay: 0.32s; }
+@media (prefers-reduced-motion: reduce) { main > *, .dado.pequeno { animation: none; } }
+@media print { body { background-image: none; } }
+/* Cartão sobre fundo escuro (criar herói) precisa ser opaco para o texto ler bem. */
+.tela-cheia .cartao { background: #f4e8c8; }
+/* Com as letras novas, o cartão do herói precisa de colunas que encolhem em telas estreitas. */
+header.heroi > * { min-width: 0; }
+.numeros.quatro { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.numeros.quatro div { overflow: hidden; }
+.numeros.quatro div { padding: 6px 2px; }
+.numeros.quatro dt { font-size: 0.56rem; letter-spacing: 0; }
+.heroi-dados .linha { flex-wrap: wrap; gap: 2px 12px; }
+
+/* Arte nova (traço de iluminura): cenário em tons de pergaminho ao entardecer, para as figuras escuras lerem bem. */
+.sprite { image-rendering: auto; overflow: visible; }
+.arena { background: linear-gradient(180deg, #d9c796 0%, #c4ad78 62%, #85713f 62%, #6f5d33 100%); }
+.versus { color: #2b1d0e99; }
+.chefe-palco { background: radial-gradient(circle at 50% 75%, #d9c796 0%, #a88c58 55%, #6b4a2a 100%); }
+.retrato { background: #d9c796; }
+.dano-flutuante { color: #fff8e0; text-shadow: 0 2px 0 #2b1d0e, 0 0 6px #7a1f1f; }

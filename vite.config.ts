@@ -22,13 +22,15 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
+      // As letras também ficam guardadas para uso offline.
+      workbox: { globPatterns: ["**/*.{js,css,html,woff2}"] },
       manifest: {
         name: "Game Life",
         short_name: "Game Life",
         description: "Hábitos de saúde gamificados, com dados guardados só no seu celular.",
         lang: "pt-BR",
-        theme_color: "#0f172a",
-        background_color: "#0f172a",
+        theme_color: "#3b2913",
+        background_color: "#e9d9b0",
         display: "standalone",
         start_url: base,
         scope: base,
