@@ -13,6 +13,8 @@ export interface DiaResumido {
   glicoses: number;
   sono: boolean;
   sequencia: number;
+  /** Metas de "fazer pelo menos" (estudo, leitura...) cumpridas no dia. */
+  metasCumpridas?: number;
 }
 
 // ---------- Missões semanais ----------
@@ -30,13 +32,16 @@ export interface Missao {
 }
 
 /** As missões da semana (segunda a domingo). Fixas, para você saber o que esperar. */
-export function missoesDaSemana(dias: DiaResumido[]): Missao[] {
+export function missoesDaSemana(dias: DiaResumido[], comGlicose = true): Missao[] {
   const contar = (f: (d: DiaResumido) => boolean) => dias.filter(f).length;
   const lista = [
     { id: "garantidos", titulo: "Garantir 6 dias", meta: 6, progresso: contar((d) => d.garantido), risco: "Usar pausa sem precisar. A revisão semanal mostra quantas pausas houve." },
     { id: "agua", titulo: "Bater a meta de água em 5 dias", meta: 5, progresso: contar((d) => d.metaAgua), risco: "Beber tudo de uma vez à noite. Não há XP acima da meta." },
     { id: "caminhadas", titulo: "3 caminhadas pós-refeição", meta: 3, progresso: dias.reduce((s, d) => s + d.caminhadas, 0), risco: "Registrar caminhadas curtas demais. Conta a partir de 10 minutos." },
-    { id: "glicose", titulo: "Medir a glicose em 6 dias", meta: 6, progresso: contar((d) => d.glicoses > 0), risco: "Medir só nos dias bons. O valor nunca tira pontos, então registre todos." },
+    // Com a glicose desligada, a missão de medir dá lugar a uma de metas pessoais.
+    comGlicose
+      ? { id: "glicose", titulo: "Medir a glicose em 6 dias", meta: 6, progresso: contar((d) => d.glicoses > 0), risco: "Medir só nos dias bons. O valor nunca tira pontos, então registre todos." }
+      : { id: "metas", titulo: "Bater uma meta de estudo ou leitura em 5 dias", meta: 5, progresso: contar((d) => (d.metasCumpridas ?? 0) > 0), risco: "Inflar os minutos para fechar a meta. Só há XP até 60 min por dia." },
     { id: "sono", titulo: "Registrar o sono em 5 dias", meta: 5, progresso: contar((d) => d.sono), risco: "Chutar as horas. Vale mais registrar o real." },
   ];
   return lista.map((m) => ({ ...m, progresso: Math.min(m.progresso, m.meta), concluida: m.progresso >= m.meta }));
@@ -80,8 +85,8 @@ export function agruparPorSemana(dias: DiaResumido[]): Map<string, DiaResumido[]
 }
 
 /** XP das missões e do chefe de uma semana. */
-export function xpDaSemana(semana: string, dias: DiaResumido[]): number {
-  const missoes = missoesDaSemana(dias).filter((m) => m.concluida).length * XP_POR_MISSAO;
+export function xpDaSemana(semana: string, dias: DiaResumido[], comGlicose = true): number {
+  const missoes = missoesDaSemana(dias, comGlicose).filter((m) => m.concluida).length * XP_POR_MISSAO;
   return missoes + (chefeDaSemana(semana, dias).derrotado ? XP_CHEFE : 0);
 }
 

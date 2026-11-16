@@ -1,10 +1,16 @@
 // Junta todos os registros e aplica as regras do jogo.
 // Função pura: recebe os dados do banco e devolve tudo o que a tela precisa mostrar.
-import type { CompraLoja, Configuracoes, Dia, Habito, Marcacao, Recompensa, RegistroAgua, RegistroGlicose, RegistroTreino, SincronizacaoSensor, TipoTreino } from "./db";
+import type { CompraLoja, Configuracoes, Dia, Habito, Marcacao, Meta, Recompensa, RegistroMeta, RegistroAgua, RegistroGlicose, RegistroTreino, SincronizacaoSensor, TipoTreino } from "./db";
 import { agruparPorSemana, chefeDaSemana, conquistas, missoesDaSemana, planoEsteira, xpDaSemana, type DiaResumido } from "./jogo";
 import {
   calcularSequencia,
+  glicoseLigadaEm,
   inicioDaSemana,
+  metaCumprida,
+  minutosDoDia,
+  somarDias,
+  xpMeta,
+  type MetaNoDia,
   nivelDeXp,
   seFaltarHoje,
   xpDoDia,
@@ -24,6 +30,8 @@ export interface Dados {
   compras?: CompraLoja[];
   /** Vezes que você puxou dados do app Glicose. Cada dia com pelo menos uma vale como uma medição de glicose. */
   sincronizacoes?: SincronizacaoSensor[];
+  metas?: Meta[];
+  registrosMeta?: RegistroMeta[];
 }
 
 /** Agrupa registros ativos (não excluídos) por dia. */
@@ -51,6 +59,26 @@ export function montarResumo(d: Dados, hoje: string) {
   const caminhadasValidas = (dia: string) => habitosDe(dia, "caminhada").filter((c) => c.minutos >= 10);
   const metaDoDia = new Map(d.dias.map((x) => [x.dia, x.metaAguaMl]));
 
+  // ---------- Metas pessoais (tela, jogos, estudo...) ----------
+  const registrosMeta = porDia(d.registrosMeta ?? []);
+  const metasAtivas = (d.metas ?? []).filter((m) => !m.arquivadaEm).sort((a, b) => a.ordem - b.ordem);
+  /** Situação de cada meta com lançamento em um dia. Tipo e alvo vêm do último lançamento do dia. */
+  const metasDoDia = (dia: string) => {
+    const porMeta = new Map<string, RegistroMeta[]>();
+    for (const r of registrosMeta.get(dia) ?? []) porMeta.set(r.metaId, [...(porMeta.get(r.metaId) ?? []), r]);
+    return [...porMeta.entries()].map(([metaId, regs]) => {
+      const ordenados = [...regs].sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
+      const ultimo = ordenados.at(-1)!;
+      const m: MetaNoDia = { tipo: ultimo.tipo, alvoMin: ultimo.alvoMin, minutos: minutosDoDia(ordenados), registrado: true, diaFechado: dia < hoje };
+      return { metaId, ...m, xp: xpMeta(m), cumprida: metaCumprida(m), ultimoEm: ultimo.criadoEm };
+    });
+  };
+  /** O que a tela mostra de uma meta em um dia (com ou sem lançamento). */
+  const metaNaTela = (meta: Meta, dia: string) => {
+    const achada = metasDoDia(dia).find((x) => x.metaId === meta.id);
+    return achada ?? { metaId: meta.id, tipo: meta.tipo, alvoMin: meta.alvoMin, minutos: 0, registrado: false, diaFechado: dia < hoje, xp: 0, cumprida: false, ultimoEm: undefined };
+  };
+
   const concluidos = (dia: string) => (treinos.get(dia) ?? []).filter((t) => t.concluidoEm);
   const pausaDe = (dia: string) => (marcacoes.get(dia) ?? []).filter((m) => m.tipo === "pausa").at(-1);
   const descansoDe = (dia: string) => (marcacoes.get(dia) ?? []).filter((m) => m.tipo === "descanso").at(-1);
@@ -63,7 +91,7 @@ export function montarResumo(d: Dados, hoje: string) {
   };
 
   // O jogo começa no primeiro dia com qualquer registro.
-  const todosOsDias = [...d.dias.map((x) => x.dia), ...agua.keys(), ...glicose.keys(), ...treinos.keys(), ...marcacoes.keys(), ...habitos.keys()];
+  const todosOsDias = [...d.dias.map((x) => x.dia), ...agua.keys(), ...glicose.keys(), ...treinos.keys(), ...marcacoes.keys(), ...habitos.keys(), ...registrosMeta.keys()];
   const primeiroDia = todosOsDias.length ? todosOsDias.reduce((a, b) => (a < b ? a : b)) : hoje;
   const compras = (d.compras ?? []).filter((c) => !c.excluidoEm);
   const pocoesEm = (dia: string) => compras.filter((c) => c.itemId === POCAO_DE_GELO && c.dia === dia).length;
@@ -82,6 +110,7 @@ export function montarResumo(d: Dados, hoje: string) {
     sono: habitosDe(dia, "sono").length > 0,
     medida: habitosDe(dia, "medida").length > 0,
     insulina: habitosDe(dia, "insulina").length > 0,
+    metas: metasDoDia(dia).reduce((x, m) => x + m.xp, 0),
   });
 
   // O XP total é sempre recalculado a partir dos registros, nunca guardado como saldo.
@@ -102,6 +131,7 @@ export function montarResumo(d: Dados, hoje: string) {
       glicoses: a.glicoses,
       sono: a.sono,
       sequencia: s.sequencia,
+      metasCumpridas: metasDoDia(s.dia).filter((m) => m.tipo === "minimo" && m.cumprida).length,
     });
   }
 
@@ -110,10 +140,17 @@ export function montarResumo(d: Dados, hoje: string) {
   let semanasCompletas = 0;
   let chefesDerrotados = 0;
   let missoesConcluidas = 0;
+  // Cada semana usa o modo (glicose ligada ou não) que valia no fim dela; a semana atual usa o de hoje.
+  // Assim, desligar a glicose não muda missões nem XP de semanas que já passaram.
+  const comGlicoseNaSemana = (semana: string) => {
+    const fim = somarDias(semana, 6);
+    return glicoseLigadaEm(fim < hoje ? fim : hoje, d.configuracoes.glicoseHistorico);
+  };
   for (const [semana, diasDaSemana] of semanas) {
-    xpTotal += xpDaSemana(semana, diasDaSemana);
-    missoesConcluidas += missoesDaSemana(diasDaSemana).filter((m) => m.concluida).length;
-    if (missoesDaSemana(diasDaSemana).every((m) => m.concluida)) semanasCompletas += 1;
+    const missoes = missoesDaSemana(diasDaSemana, comGlicoseNaSemana(semana));
+    xpTotal += xpDaSemana(semana, diasDaSemana, comGlicoseNaSemana(semana));
+    missoesConcluidas += missoes.filter((m) => m.concluida).length;
+    if (missoes.every((m) => m.concluida)) semanasCompletas += 1;
     if (chefeDaSemana(semana, diasDaSemana).derrotado) chefesDerrotados += 1;
   }
   const semanaAtual = inicioDaSemana(hoje);
@@ -123,12 +160,14 @@ export function montarResumo(d: Dados, hoje: string) {
   const garantidoHoje = atividadeHoje.garantido;
 
   // Quanto XP ainda está em jogo hoje se você treinar uma vez (o que segura o dia).
+  const comGlicoseHoje = glicoseLigadaEm(hoje, d.configuracoes.glicoseHistorico);
   const sequenciaSeTreinar = garantidoHoje ? sequencia.atual : sequencia.atual + 1;
   const xpSeTreinar = xpDoDia({
     ...atividadeHoje,
     sessoes: Math.max(1, atividadeHoje.sessoes),
-    checagens: Math.max(1, atividadeHoje.checagens),
-    glicoses: Math.max(1, atividadeHoje.glicoses),
+    // Checagem e medição só entram na conta com a parte de glicose ligada.
+    checagens: comGlicoseHoje ? Math.max(1, atividadeHoje.checagens) : atividadeHoje.checagens,
+    glicoses: comGlicoseHoje ? Math.max(1, atividadeHoje.glicoses) : atividadeHoje.glicoses,
     garantido: true,
     sequencia: sequenciaSeTreinar,
   }).total;
@@ -175,6 +214,12 @@ export function montarResumo(d: Dados, hoje: string) {
     habitosDe(dia, "sono").slice(0, 1).forEach((h) => ev("sono", `habito-${h.id}`, h.criadoEm));
     habitosDe(dia, "medida").slice(0, 1).forEach((h) => ev("medida", `habito-${h.id}`, h.criadoEm));
     habitosDe(dia, "insulina").slice(0, 1).forEach((h) => ev("insulina", `habito-${h.id}`, h.criadoEm));
+    // Metas pessoais: um golpe por meta por dia. Limite: 4 por registrar o dia fechado, 8 se ficou dentro.
+    // Mínimo: 2 por bloco de 15 min, até 8.
+    for (const m of metasDoDia(dia)) {
+      const base = m.tipo === "limite" ? (m.xp > 0 ? (m.cumprida ? 8 : 4) : 0) : Math.round((m.xp / 5) * 2);
+      if (base > 0) ev("meta", `meta-${m.metaId}-${dia}`, m.ultimoEm, base);
+    }
     // Água: 1 de dano por copo até a meta, +3 ao bater a meta. Nada acima da meta.
     const aguas = agua.get(dia) ?? [];
     if (aguas.length > 0) {
@@ -224,13 +269,18 @@ export function montarResumo(d: Dados, hoje: string) {
     valorGlicose,
     diasResumidos,
     jogo: {
-      missoes: missoesDaSemana(diasDaSemanaAtual),
+      missoes: missoesDaSemana(diasDaSemanaAtual, comGlicoseNaSemana(semanaAtual)),
       chefe: chefeDaSemana(semanaAtual, diasDaSemanaAtual),
       conquistas: conquistas(diasResumidos, sequencia.recorde, semanasCompletas, chefesDerrotados),
       plano: planoEsteira(primeiroDia < hoje ? primeiroDia : hoje, hoje, d.configuracoes.esteiraBaseMin),
       recompensas,
     },
     habitosHoje: habitos.get(hoje) ?? [],
+    /** Metas ativas, com a situação de hoje e de ontem (ontem é onde as metas de limite fecham). */
+    metas: metasAtivas.map((meta) => ({ meta, hoje: metaNaTela(meta, hoje), ontem: metaNaTela(meta, somarDias(hoje, -1)) })),
+    ontem: somarDias(hoje, -1),
+    /** Situação das metas com lançamento em um dia qualquer (para a revisão semanal). */
+    metasDoDia,
     rpg: {
       nome: d.configuracoes.heroiNome,
       classe: d.configuracoes.heroiClasse,
@@ -243,6 +293,7 @@ export function montarResumo(d: Dados, hoje: string) {
         refeicoes: (d.habitos ?? []).filter((h) => !h.excluidoEm && h.tipo === "refeicao").length,
         noitesDeSono: diasResumidos.filter((y) => y.sono).length,
         recordeSequencia: sequencia.recorde,
+        diasDeEstudo: diasResumidos.filter((y) => (y.metasCumpridas ?? 0) > 0).length,
       }),
       batalha,
       ouro,

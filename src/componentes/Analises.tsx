@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { compararGrupos, estatisticasGlicose, paraCsv, type EstatisticasGlicose } from "../analises";
-import type { Configuracoes, Habito, RegistroAgua, RegistroGlicose, RegistroTreino } from "../db";
+import { glicoseLigada, type Configuracoes, type Habito, type Meta, type RegistroAgua, type RegistroGlicose, type RegistroMeta, type RegistroTreino } from "../db";
+import { duracao } from "./Metas";
 import { diaLogico, inicioDaSemana, somarDias } from "../regras";
 import type { Resumo } from "../resumo";
 import Relatorio from "./Relatorio";
@@ -12,6 +13,8 @@ export interface DadosBrutos {
   treinos: RegistroTreino[];
   habitos: Habito[];
   agua: RegistroAgua[];
+  metas: Meta[];
+  registrosMeta: RegistroMeta[];
 }
 
 const ativos = <T extends { excluidoEm?: string }>(xs: T[]) => xs.filter((x) => !x.excluidoEm);
@@ -43,10 +46,13 @@ export default function Analises({ dados, resumo }: { dados: DadosBrutos; resumo
   const noPeriodo = glicose.filter((g) => g.dia >= dias[0]);
   const est = estatisticasGlicose(noPeriodo.map((g) => g.valor), c.alvoMinimo, c.alvoMaximo);
 
+  const comGlicose = glicoseLigada(c);
+
   if (relatorio) return <Relatorio dados={dados} resumo={resumo} onFechar={() => setRelatorio(false)} />;
 
   return (
     <>
+      {comGlicose && (
       <section className="cartao">
         <div className="cartao-topo">
           <h2>Glicose</h2>
@@ -65,16 +71,19 @@ export default function Analises({ dados, resumo }: { dados: DadosBrutos; resumo
           indicar glicose estável.
         </p>
       </section>
+      )}
 
-      <CartaoSensor dias={dias} />
-      <Correlacoes dados={dados} hoje={hoje} />
-      <RevisaoSemanal resumo={resumo} glicose={glicose} hoje={hoje} c={c} />
+      {comGlicose && <CartaoSensor dias={dias} />}
+      {comGlicose && <Correlacoes dados={dados} hoje={hoje} />}
+      <RevisaoSemanal resumo={resumo} glicose={glicose} hoje={hoje} c={c} comGlicose={comGlicose} />
 
       <section className="cartao">
-        <h2>Relatório e exportação</h2>
-        <button className="principal habito" onClick={() => setRelatorio(true)}>
-          Relatório para o médico
-        </button>
+        <h2>{comGlicose ? "Relatório e exportação" : "Exportação"}</h2>
+        {comGlicose && (
+          <button className="principal habito" onClick={() => setRelatorio(true)}>
+            Relatório para o médico
+          </button>
+        )}
         <button className="discreto" onClick={() => exportarCsv(dados)}>
           Exportar tudo em CSV (planilha)
         </button>
@@ -213,7 +222,7 @@ function Correlacoes({ dados, hoje }: { dados: DadosBrutos; hoje: string }) {
   );
 }
 
-function RevisaoSemanal({ resumo, glicose, hoje, c }: { resumo: Resumo; glicose: RegistroGlicose[]; hoje: string; c: Configuracoes }) {
+function RevisaoSemanal({ resumo, glicose, hoje, c, comGlicose }: { resumo: Resumo; glicose: RegistroGlicose[]; hoje: string; c: Configuracoes; comGlicose: boolean }) {
   const esta = inicioDaSemana(hoje);
   const passada = somarDias(esta, -7);
   const linha = (inicio: string) => {
@@ -235,14 +244,23 @@ function RevisaoSemanal({ resumo, glicose, hoje, c }: { resumo: Resumo; glicose:
   };
   const a = linha(esta);
   const b = linha(passada);
+  /** "3 de 5 · média 1 h 10 min": dias com a meta cumprida entre os registrados (limite só conta dia fechado). */
+  const metaNaSemana = (metaId: string, inicio: string) => {
+    const doPeriodo = Array.from({ length: 7 }, (_, i) => somarDias(inicio, i))
+      .flatMap((dia) => resumo.metasDoDia(dia).filter((m) => m.metaId === metaId))
+      .filter((m) => m.tipo === "minimo" || m.diaFechado);
+    if (doPeriodo.length === 0) return "—";
+    const mediaMin = Math.round(doPeriodo.reduce((s, m) => s + m.minutos, 0) / doPeriodo.length);
+    return `${doPeriodo.filter((m) => m.cumprida).length} de ${doPeriodo.length} · ${duracao(mediaMin)}`;
+  };
   const v = (n: number | null, s = "") => (n === null ? "—" : `${n}${s}`);
   const linhas: [string, string, string][] = [
     ["Dias garantidos", v(a.garantidos), v(b.garantidos)],
     ["Treinos", v(a.treinos), v(b.treinos)],
     ["Dias com meta de água", v(a.agua), v(b.agua)],
     ["Caminhadas pós-refeição", v(a.caminhadas), v(b.caminhadas)],
-    ["Glicose média (mg/dL)", v(a.media), v(b.media)],
-    ["Medições no alvo", v(a.alvo, "%"), v(b.alvo, "%")],
+    ...(comGlicose ? ([["Glicose média (mg/dL)", v(a.media), v(b.media)], ["Medições no alvo", v(a.alvo, "%"), v(b.alvo, "%")]] as [string, string, string][]) : []),
+    ...resumo.metas.map(({ meta }): [string, string, string] => [`${meta.icone} ${meta.nome}`, metaNaSemana(meta.id, esta), metaNaSemana(meta.id, passada)]),
   ];
   return (
     <section className="cartao">
@@ -265,6 +283,7 @@ function RevisaoSemanal({ resumo, glicose, hoje, c }: { resumo: Resumo; glicose:
           ))}
         </tbody>
       </table>
+      {resumo.metas.length > 0 && <p className="nota">Nas metas: dias com a meta cumprida entre os dias registrados, e a média por dia. Use para decidir se aperta ou afrouxa um alvo.</p>}
       <p className="nota">Missões concluídas nesta semana: {resumo.jogo.missoes.filter((m) => m.concluida).length} de {resumo.jogo.missoes.length}.</p>
     </section>
   );
@@ -297,6 +316,14 @@ function exportarCsv(dados: DadosBrutos) {
           return { ...base, valor: h.unidades, unidade: "U", detalhe: h.insulina };
       }
     }),
+    ...ativos(dados.registrosMeta).map((r) => ({
+      registro: `meta: ${dados.metas.find((m) => m.id === r.metaId)?.nome ?? r.metaId}`,
+      dia: r.dia,
+      horario: r.criadoEm,
+      valor: r.minutos,
+      unidade: r.total ? "min (total do dia)" : "min",
+      detalhe: [r.etiqueta, `${r.tipo === "limite" ? "limite" : "meta"} ${r.alvoMin} min`].filter(Boolean).join(" · "),
+    })),
   ].sort((a, b) => a.horario.localeCompare(b.horario));
   baixar(`game-life-${diaLogico()}.csv`, paraCsv(linhas), "text/csv;charset=utf-8");
 }

@@ -107,7 +107,7 @@ export default function Batalha({ resumo, golpe, compacta = false }: { resumo: R
             ? `${golpe.critico ? "Acerto crítico! " : ""}Você causou ${golpe.dano} de dano.`
             : danoHoje > 0
               ? `Hoje você já causou ${danoHoje} de dano em ${ataquesHoje.length} ${ataquesHoje.length === 1 ? "golpe" : "golpes"}.`
-              : "Cada registro seu vira um golpe: treino, água, glicose, hábitos."}
+              : "Cada registro seu vira um golpe: treino, metas, água, hábitos."}
       </p>
       {!compacta && ataquesHoje.length > 0 && (
         <ul className="diario">

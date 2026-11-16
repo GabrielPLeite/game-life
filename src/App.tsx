@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, garantirDia, lerConfiguracoes } from "./db";
+import { db, garantirDia, glicoseLigada, lerConfiguracoes, prepararVersaoGeneralista } from "./db";
 import { diaLogico } from "./regras";
 import { montarResumo } from "./resumo";
 import Cabecalho from "./componentes/Cabecalho";
@@ -8,6 +8,7 @@ import EmJogo from "./componentes/EmJogo";
 import Treino from "./componentes/Treino";
 import Agua from "./componentes/Agua";
 import Glicose from "./componentes/Glicose";
+import Metas from "./componentes/Metas";
 import Habitos from "./componentes/Habitos";
 import Jogo from "./componentes/Jogo";
 import Analises from "./componentes/Analises";
@@ -68,9 +69,14 @@ export default function App() {
     void garantirDia(hoje);
   }, [hoje]);
 
+  // Primeira abertura da versão generalista: desliga a glicose (sem apagar nada) e cria as metas iniciais.
+  useEffect(() => {
+    void prepararVersaoGeneralista();
+  }, []);
+
   // useLiveQuery relê o banco sozinho sempre que algo muda.
   const dados = useLiveQuery(async () => {
-    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes] = await Promise.all([
+    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta] = await Promise.all([
       lerConfiguracoes(),
       db.dias.toArray(),
       db.agua.toArray(),
@@ -81,8 +87,10 @@ export default function App() {
       db.recompensas.toArray(),
       db.compras.toArray(),
       db.sincronizacoes.toArray(),
+      db.metas.toArray(),
+      db.registrosMeta.toArray(),
     ]);
-    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes };
+    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta };
   });
 
   const resumo = dados ? montarResumo(dados, hoje) : undefined;
@@ -106,6 +114,7 @@ export default function App() {
 
   if (!dados || !resumo) return null;
   if (!dados.configuracoes.heroiNome) return <CriarHeroi />;
+  const comGlicose = glicoseLigada(dados.configuracoes);
 
   return (
     <>
@@ -116,18 +125,19 @@ export default function App() {
         {aba === "hoje" && (
           <>
             <Batalha resumo={resumo} golpe={golpe} compacta />
-            <EmJogo resumo={resumo} />
+            <EmJogo resumo={resumo} comGlicose={comGlicose} />
             <Treino resumo={resumo} configuracoes={dados.configuracoes} />
+            <Metas resumo={resumo} />
             <Agua resumo={resumo} />
-            <Glicose resumo={resumo} configuracoes={dados.configuracoes} />
+            {comGlicose && <Glicose resumo={resumo} configuracoes={dados.configuracoes} />}
           </>
         )}
-        {aba === "habitos" && <Habitos resumo={resumo} />}
+        {aba === "habitos" && <Habitos resumo={resumo} comGlicose={comGlicose} />}
         {aba === "jogo" && <Jogo resumo={resumo} golpe={golpe} />}
         {aba === "analises" && <Analises dados={dados} resumo={resumo} />}
         {aba !== "analises" && (
           <>
-            <Configuracoes configuracoes={dados.configuracoes} metaAguaHoje={resumo.hoje.metaAguaMl} />
+            <Configuracoes configuracoes={dados.configuracoes} metaAguaHoje={resumo.hoje.metaAguaMl} metas={dados.metas} />
             <p className="nota versao">Versão {__VERSAO__}</p>
           </>
         )}

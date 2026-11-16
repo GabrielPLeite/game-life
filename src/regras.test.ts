@@ -3,12 +3,17 @@ import {
   calcularSequencia,
   classificarGlicose,
   diaLogico,
+  glicoseLigadaEm,
   inicioDaSemana,
+  metaCumprida,
+  minutosDoDia,
   nivelDeXp,
   seFaltarHoje,
   somarDias,
   xpAgua,
   xpDoDia,
+  xpMeta,
+  type MetaNoDia,
 } from "./regras";
 
 describe("diaLogico", () => {
@@ -70,7 +75,7 @@ describe("xpDoDia", () => {
   const base = { sessoes: 0, checagens: 0, glicoses: 0, aguaMl: 0, metaAguaMl: 2500, garantido: false, sequencia: 0 };
   it("dia normal: 1 treino com checagem, 3 glicoses, meta de água, sequência 5", () => {
     const { total, partes } = xpDoDia({ ...base, sessoes: 1, checagens: 1, glicoses: 3, aguaMl: 2500, garantido: true, sequencia: 5 });
-    expect(partes).toEqual({ treinos: 40, checagens: 10, glicose: 15, agua: 30, dia: 20, bonus: 10, habitos: 0 });
+    expect(partes).toEqual({ treinos: 40, checagens: 10, glicose: 15, agua: 30, dia: 20, bonus: 10, habitos: 0, metas: 0 });
     expect(total).toBe(125);
   });
   it("hábitos: tetos e uma vez por dia para sono, medida e insulina", () => {
@@ -122,5 +127,58 @@ describe("calcularSequencia", () => {
   it("mostra o que acontece se faltar hoje", () => {
     expect(seFaltarHoje(rodar("CCCCCC."))).toEqual({ usaCongelamento: false, sequenciaDepois: 3 });
     expect(seFaltarHoje(rodar("CCCCCCC."))).toEqual({ usaCongelamento: true, sequenciaDepois: 7 });
+  });
+});
+
+describe("metas pessoais", () => {
+  it("soma lançamentos e um 'total do dia' substitui o que veio antes", () => {
+    expect(minutosDoDia([])).toBe(0);
+    expect(
+      minutosDoDia([
+        { criadoEm: "2026-11-16T10:00:00Z", minutos: 30 },
+        { criadoEm: "2026-11-16T12:00:00Z", minutos: 60 },
+      ]),
+    ).toBe(90);
+    expect(
+      minutosDoDia([
+        { criadoEm: "2026-11-16T12:00:00Z", minutos: 50, total: true },
+        { criadoEm: "2026-11-16T10:00:00Z", minutos: 30 },
+        { criadoEm: "2026-11-16T13:00:00Z", minutos: 15 },
+      ]),
+    ).toBe(65);
+  });
+
+  const limite = (minutos: number, extra: Partial<MetaNoDia> = {}): MetaNoDia => ({ tipo: "limite", alvoMin: 60, minutos, registrado: true, diaFechado: true, ...extra });
+  const minimo = (minutos: number): MetaNoDia => ({ tipo: "minimo", alvoMin: 30, minutos, registrado: true, diaFechado: false });
+
+  it("limite: registrar vale 10, ficar dentro vale +15, estourar nunca tira pontos", () => {
+    expect(xpMeta(limite(50))).toBe(25);
+    expect(xpMeta(limite(60))).toBe(25);
+    expect(xpMeta(limite(300))).toBe(10);
+    expect(metaCumprida(limite(300))).toBe(false);
+  });
+
+  it("limite: sem registro não há XP, e o dia de hoje só pontua depois de fechar", () => {
+    expect(xpMeta(limite(0, { registrado: false }))).toBe(0);
+    expect(xpMeta(limite(0, { diaFechado: false }))).toBe(0);
+    expect(metaCumprida(limite(0, { diaFechado: false }))).toBe(false);
+  });
+
+  it("mínimo: 5 XP a cada 15 min, com teto em 60 min", () => {
+    expect(xpMeta(minimo(14))).toBe(0);
+    expect(xpMeta(minimo(30))).toBe(10);
+    expect(xpMeta(minimo(600))).toBe(20);
+    expect(metaCumprida(minimo(29))).toBe(false);
+    expect(metaCumprida(minimo(30))).toBe(true);
+  });
+});
+
+describe("glicoseLigadaEm", () => {
+  it("sem histórico vale ligada; depois segue a última mudança até aquele dia", () => {
+    expect(glicoseLigadaEm("2026-11-10", undefined)).toBe(true);
+    const h = [{ desde: "2026-11-16", ligada: false }, { desde: "2026-12-01", ligada: true }];
+    expect(glicoseLigadaEm("2026-11-15", h)).toBe(true);
+    expect(glicoseLigadaEm("2026-11-16", h)).toBe(false);
+    expect(glicoseLigadaEm("2026-12-02", h)).toBe(true);
   });
 });

@@ -20,14 +20,14 @@ function Excluir({ id, rotulo }: { id: number; rotulo: string }) {
   );
 }
 
-export default function Habitos({ resumo }: { resumo: Resumo }) {
+export default function Habitos({ resumo, comGlicose }: { resumo: Resumo; comGlicose: boolean }) {
   const hoje = resumo.habitosHoje;
   const de = <T extends Habito["tipo"]>(tipo: T) => hoje.filter((h): h is Extract<Habito, { tipo: T }> => h.tipo === tipo);
   return (
     <>
       <Refeicoes refeicoes={de("refeicao")} caminhadas={de("caminhada")} />
       <Sono registros={de("sono")} />
-      <Insulina registros={de("insulina")} />
+      {comGlicose && <Insulina registros={de("insulina")} />}
       <Medidas registros={de("medida")} />
     </>
   );

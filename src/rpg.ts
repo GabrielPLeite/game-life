@@ -7,7 +7,7 @@
 
 // ---------- Classes ----------
 
-export type TipoAtaque = "treino" | "pausa" | "checagem" | "caminhada" | "glicose" | "agua" | "sono" | "refeicao" | "medida" | "insulina";
+export type TipoAtaque = "treino" | "pausa" | "checagem" | "caminhada" | "glicose" | "agua" | "sono" | "refeicao" | "medida" | "insulina" | "meta";
 
 export type Classe = "guerreiro" | "patrulheiro" | "clerigo" | "mago";
 
@@ -15,7 +15,7 @@ export const CLASSES: Record<Classe, { nome: string; descricao: string; bonus: T
   guerreiro: { nome: "Guerreiro", descricao: "Mestre da força. +2 de dano em treinos.", bonus: ["treino", "pausa"] },
   patrulheiro: { nome: "Patrulheiro", descricao: "Andarilho incansável. +2 de dano em caminhadas e checagens.", bonus: ["caminhada", "checagem"] },
   clerigo: { nome: "Clérigo", descricao: "Guardião do próprio corpo. +2 de dano ao registrar glicose e insulina.", bonus: ["glicose", "insulina"] },
-  mago: { nome: "Mago", descricao: "Disciplina e ritual. +2 de dano com água, sono e refeições.", bonus: ["agua", "sono", "refeicao"] },
+  mago: { nome: "Mago", descricao: "Disciplina e ritual. +2 de dano com água, sono, refeições e metas pessoais.", bonus: ["agua", "sono", "refeicao", "meta"] },
 };
 export const BONUS_DE_CLASSE = 2;
 
@@ -38,6 +38,8 @@ export interface TotaisDeVida {
   refeicoes: number;
   noitesDeSono: number;
   recordeSequencia: number;
+  /** Dias com alguma meta de estudo ou leitura cumprida. */
+  diasDeEstudo?: number;
 }
 
 export interface Atributo { sigla: string; nome: string; valor: number; mod: number; origem: string; }
@@ -53,7 +55,7 @@ export function atributos(t: TotaisDeVida): Atributo[] {
     a("DES", "Destreza", t.caminhadas, 3, "caminhadas pós-refeição"),
     a("CON", "Constituição", t.diasMetaAgua, 4, "dias com meta de água"),
     a("INT", "Inteligência", t.refeicoes, 8, "refeições registradas"),
-    a("SAB", "Sabedoria", t.diasComGlicose, 4, "dias medindo a glicose"),
+    a("SAB", "Sabedoria", t.diasComGlicose + (t.diasDeEstudo ?? 0), 4, "dias de estudo ou de medição"),
     a("CAR", "Carisma", t.noitesDeSono + t.recordeSequencia, 5, "sono registrado e recorde de sequência"),
   ];
 }
@@ -139,11 +141,11 @@ export interface Ataque extends Evento { d20: number; critico: boolean; dano: nu
 
 /** Dano base de cada ação. Um dia normal soma cerca de 50. */
 export const DANO_BASE: Record<TipoAtaque, number> = {
-  treino: 12, pausa: 12, checagem: 2, caminhada: 6, glicose: 3, agua: 1, sono: 4, refeicao: 2, medida: 2, insulina: 3,
+  treino: 12, pausa: 12, checagem: 2, caminhada: 6, glicose: 3, agua: 1, sono: 4, refeicao: 2, medida: 2, insulina: 3, meta: 4,
 };
 export const NOME_DO_GOLPE: Record<TipoAtaque, string> = {
   treino: "Golpe de treino", pausa: "Postura defensiva", checagem: "Olhar atento", caminhada: "Investida", glicose: "Percepção",
-  agua: "Frasco de água", sono: "Descanso longo", refeicao: "Ração de viagem", medida: "Autoconhecimento", insulina: "Ritual de cuidado",
+  agua: "Frasco de água", sono: "Descanso longo", refeicao: "Ração de viagem", medida: "Autoconhecimento", insulina: "Ritual de cuidado", meta: "Disciplina",
 };
 
 /** Número "aleatório" que depende só do texto: o mesmo registro sempre rola o mesmo dado. */

@@ -116,6 +116,8 @@ export interface AtividadeDoDia {
   sono?: boolean;
   medida?: boolean;
   insulina?: boolean;
+  /** XP das metas pessoais do dia (tela, jogos, estudo...), já calculado por xpMeta. */
+  metas?: number;
 }
 
 export function bonusDeSequencia(sequencia: number): number {
@@ -137,6 +139,7 @@ export function xpDoDia(a: AtividadeDoDia) {
       (a.sono ? XP_SONO : 0) +
       (a.medida ? XP_MEDIDA : 0) +
       (a.insulina ? XP_INSULINA : 0),
+    metas: a.metas ?? 0,
   };
   const total = Object.values(partes).reduce((s, v) => s + v, 0);
   return { total, partes };
@@ -247,4 +250,84 @@ export function nivelDeXp(xpTotal: number): { nivel: number; xpNoNivel: number; 
     nivel += 1;
   }
   return { nivel, xpNoNivel: resto, xpParaProximo: custoDoNivel(nivel) };
+}
+
+// ---------- Metas pessoais (tela, jogos, estudo...) ----------
+
+/**
+ * "minimo": fazer pelo menos X minutos por dia (estudo, leitura).
+ * "limite": ficar abaixo de X minutos por dia (tela, jogos).
+ */
+export type TipoMeta = "minimo" | "limite";
+
+export interface LancamentoMeta {
+  criadoEm: string;
+  minutos: number;
+  /** true = "o total do dia foi este" (substitui o que veio antes). false/vazio = soma. */
+  total?: boolean;
+}
+
+/** Minutos de um dia: cada lançamento soma, e um "total do dia" substitui tudo o que veio antes dele. */
+export function minutosDoDia(lancamentos: LancamentoMeta[]): number {
+  let minutos = 0;
+  for (const l of [...lancamentos].sort((a, b) => a.criadoEm.localeCompare(b.criadoEm))) {
+    minutos = l.total ? l.minutos : minutos + l.minutos;
+  }
+  return Math.max(0, minutos);
+}
+
+export const XP_REGISTRAR_LIMITE = 10;
+export const XP_DENTRO_DO_LIMITE = 15;
+export const XP_POR_BLOCO = 5;
+export const MINUTOS_POR_BLOCO = 15;
+export const MAX_MINUTOS_COM_XP = 60;
+
+export interface MetaNoDia {
+  tipo: TipoMeta;
+  /** Alvo em minutos que valia naquele dia. */
+  alvoMin: number;
+  minutos: number;
+  /** Houve pelo menos um lançamento no dia (mesmo que de 0 minutos). */
+  registrado: boolean;
+  /** O dia já acabou. Metas de limite só pontuam com o dia fechado. */
+  diaFechado: boolean;
+}
+
+/** A meta do dia foi cumprida? Limite: registrou e ficou dentro. Mínimo: chegou no alvo. */
+export function metaCumprida(m: MetaNoDia): boolean {
+  if (!m.registrado) return false;
+  return m.tipo === "limite" ? m.diaFechado && m.minutos <= m.alvoMin : m.minutos >= m.alvoMin;
+}
+
+/**
+ * XP de uma meta em um dia.
+ * - Limite (tela, jogos): 10 XP por registrar o dia, +15 se ficou dentro do limite. Estourar não tira nada:
+ *   registrar a verdade sempre vale. Só conta com o dia fechado, para "0 min" de manhã não dar XP.
+ * - Mínimo (estudo): 5 XP a cada 15 min, até 60 min por dia. Acima disso não há XP, para não premiar inflar minutos.
+ */
+export function xpMeta(m: MetaNoDia): number {
+  if (!m.registrado) return 0;
+  if (m.tipo === "limite") {
+    if (!m.diaFechado) return 0;
+    return XP_REGISTRAR_LIMITE + (m.minutos <= m.alvoMin ? XP_DENTRO_DO_LIMITE : 0);
+  }
+  return Math.floor(Math.min(m.minutos, MAX_MINUTOS_COM_XP) / MINUTOS_POR_BLOCO) * XP_POR_BLOCO;
+}
+
+// ---------- Modo glicose (ligado/desligado) ----------
+
+export interface MudancaDeModo {
+  /** Dia (AAAA-MM-DD) a partir do qual vale. */
+  desde: string;
+  ligada: boolean;
+}
+
+/**
+ * A parte de glicose estava ligada naquele dia? Sem histórico, vale ligada (era assim antes da versão generalista).
+ * Guardar o histórico evita que desligar hoje mude missões e XP de semanas passadas.
+ */
+export function glicoseLigadaEm(dia: string, historico: MudancaDeModo[] | undefined): boolean {
+  let ligada = true;
+  for (const m of historico ?? []) if (m.desde <= dia) ligada = m.ligada;
+  return ligada;
 }
