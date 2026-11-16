@@ -5,6 +5,7 @@
   --texto: #f1f5f9;
   --suave: #94a3b8;
   --agua: #38bdf8;
+  --meta: #2dd4bf;
   --treino: #4ade80;
   --glicose: #c4b5fd;
   --xp: #facc15;
@@ -55,6 +56,13 @@ header { display: grid; gap: 8px; }
 .barra-cheia { height: 100%; border-radius: 999px; transition: width 0.25s ease; }
 .barra-cheia.xp { background: var(--xp); }
 .barra-cheia.agua { background: var(--agua); }
+.barra-cheia.meta { background: var(--meta); }
+.barra-cheia.passou { background: var(--perigo); }
+button.principal.meta { background: var(--meta); border-color: var(--meta); color: #042f2e; min-height: 56px; }
+.linha.duracao { justify-content: flex-start; gap: 8px; }
+.linha.duracao input.numero { width: 84px; flex: none; text-align: center; }
+.interruptor { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cartao h2 span[aria-hidden] { margin-right: 4px; }
 
 .cartao {
   background: var(--cartao);

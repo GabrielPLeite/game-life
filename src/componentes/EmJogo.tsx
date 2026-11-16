@@ -1,7 +1,7 @@
 import type { Resumo } from "../resumo";
 
 /** O que você perde se não treinar hoje. Some quando o dia já está garantido. */
-export default function EmJogo({ resumo }: { resumo: Resumo }) {
+export default function EmJogo({ resumo, comGlicose }: { resumo: Resumo; comGlicose: boolean }) {
   const { hoje, sequencia, emJogo } = resumo;
 
   if (hoje.garantido) {
@@ -28,7 +28,7 @@ export default function EmJogo({ resumo }: { resumo: Resumo }) {
         <li>deixa {emJogo.xp} XP na mesa</li>
         {sequencia.atual > 0 && !emJogo.usaCongelamento && <li>a contagem para o próximo congelamento recomeça</li>}
       </ul>
-      <p className="nota">Um treino já garante o dia. Glicose fora da faixa ou doença contam como pausa legítima.</p>
+      <p className="nota">Um treino já garante o dia. {comGlicose ? "Glicose fora da faixa ou doença" : "Doença ou lesão"} contam como pausa legítima.</p>
     </section>
   );
 }

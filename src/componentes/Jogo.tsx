@@ -40,7 +40,7 @@ export default function Jogo({ resumo, golpe }: { resumo: Resumo; golpe: Golpe |
           ))}
         </ul>
         <p className="nota">
-          Os atributos sobem com a vida real: FOR com treinos, DES com caminhadas, CON com dias de meta de água, INT com refeições registradas, SAB com dias medindo a glicose, CAR com sono e
+          Os atributos sobem com a vida real: FOR com treinos, DES com caminhadas, CON com dias de meta de água, INT com refeições registradas, SAB com dias de estudo, CAR com sono e
           recorde de sequência. {r.classe ? CLASSES[r.classe].descricao : ""}
         </p>
       </section>
@@ -146,7 +146,7 @@ export default function Jogo({ resumo, golpe }: { resumo: Resumo; golpe: Golpe |
             ? "Semana leve (deload): menos tempo para o corpo se recuperar. Ela faz parte do plano."
             : `Sobe 5 min por semana e alivia na 4ª. Próxima mudança em ${dataCurta(plano.inicioDaProxima)}.`}
         </p>
-        <p className="nota">É uma meta de referência, não dá XP extra. A checagem de glicose continua valendo antes de cada treino.</p>
+        <p className="nota">É uma meta de referência, não dá XP extra.</p>
       </section>
     </>
   );

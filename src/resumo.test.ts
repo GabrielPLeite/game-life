@@ -21,7 +21,7 @@ describe("montarResumo", () => {
     const r = montarResumo(d, "2026-11-11");
     expect(r.hoje.garantido).toBe(true);
     expect(r.sequencia.atual).toBe(1);
-    expect(r.xpHoje.partes).toEqual({ treinos: 40, checagens: 10, glicose: 5, agua: 0, dia: 20, bonus: 2, habitos: 0 });
+    expect(r.xpHoje.partes).toEqual({ treinos: 40, checagens: 10, glicose: 5, agua: 0, dia: 20, bonus: 2, habitos: 0, metas: 0 });
     expect(r.ultimoTipo.manha).toBe("esteira");
   });
 
@@ -89,5 +89,47 @@ describe("montarResumo com hábitos e semana", () => {
     d.recompensas = [{ id: 1, nome: "Tênis", nivel: 1, criadoEm: "" }, { id: 2, nome: "Relógio", nivel: 5, criadoEm: "" }];
     const r = montarResumo(d, "2026-11-11");
     expect(r.jogo.recompensas.map((x) => x.liberada)).toEqual([true, false]);
+  });
+
+  describe("versão generalista", () => {
+    const off = (): Dados => ({ ...vazio(), configuracoes: { ...CONFIG_PADRAO, glicoseHistorico: [{ desde: "2026-11-16", ligada: false }] }, registrosMeta: [], metas: [] });
+    const reg = (id: string, metaId: string, dia: string, minutos: number, tipo: "limite" | "minimo", alvoMin: number, total = false) => ({ id, metaId, dia, criadoEm: `${dia}T12:00:00Z-${id}`, minutos, tipo, alvoMin, total });
+
+    it("com a glicose desligada, o XP em jogo não conta checagem nem medição", () => {
+      const r = montarResumo(off(), "2026-11-16");
+      expect(r.emJogo.xp).toBe(40 + 20 + 2);
+    });
+
+    it("meta de limite só pontua quando o dia fecha, e estourar ainda vale o registro", () => {
+      const d = off();
+      d.registrosMeta!.push(reg("a", "tela", "2026-11-16", 50, "limite", 60, true), reg("b", "pc", "2026-11-16", 400, "limite", 180, true), reg("c", "tela", "2026-11-17", 0, "limite", 60, true));
+      const r = montarResumo(d, "2026-11-17");
+      const ontem = r.metasDoDia("2026-11-16");
+      expect(ontem.find((m) => m.metaId === "tela")).toMatchObject({ xp: 25, cumprida: true });
+      expect(ontem.find((m) => m.metaId === "pc")).toMatchObject({ xp: 10, cumprida: false });
+      expect(r.metasDoDia("2026-11-17")[0]).toMatchObject({ xp: 0, cumprida: false });
+      expect(r.xpHoje.partes.metas).toBe(0);
+      expect(r.xpTotal).toBe(35);
+    });
+
+    it("estudo soma XP no próprio dia e vira golpe na batalha", () => {
+      const d = off();
+      d.registrosMeta!.push(reg("a", "estudo", "2026-11-16", 15, "minimo", 30), reg("b", "estudo", "2026-11-16", 15, "minimo", 30));
+      const r = montarResumo(d, "2026-11-16");
+      expect(r.xpHoje.partes.metas).toBe(10);
+      expect(r.rpg.ataquesHoje.map((a) => [a.tipo, a.base])).toEqual([["meta", 4]]);
+      expect(r.diasResumidos.at(-1)!.metasCumpridas).toBe(1);
+    });
+
+    it("a missão de glicose dá lugar à de metas só a partir da semana em que foi desligada", () => {
+      const d = off();
+      d.dias.push({ dia: "2026-11-09", metaAguaMl: 2500 });
+      const r = montarResumo(d, "2026-11-16");
+      expect(r.jogo.missoes.map((m) => m.id)).toContain("metas");
+      expect(r.jogo.missoes.map((m) => m.id)).not.toContain("glicose");
+      // Religar volta a missão de glicose para a semana atual.
+      d.configuracoes = { ...d.configuracoes, glicoseHistorico: [...d.configuracoes.glicoseHistorico!, { desde: "2026-11-17", ligada: true }] };
+      expect(montarResumo(d, "2026-11-17").jogo.missoes.map((m) => m.id)).toContain("glicose");
+    });
   });
 });

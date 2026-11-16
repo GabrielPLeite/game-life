@@ -5,6 +5,7 @@ import {
   concluirTreino,
   desfazerMarcacao,
   desfazerUltimoTreino,
+  glicoseLigada,
   iniciarTreino,
   marcarDia,
   type Configuracoes,
@@ -59,6 +60,7 @@ export default function Treino({ resumo, configuracoes }: { resumo: Resumo; conf
   const { hoje } = resumo;
   const emAndamento = hoje.treinoEmAndamento;
   const voltar = () => setEtapa({ tipo: "inicio" });
+  const comGlicose = glicoseLigada(configuracoes);
   const recentes = useLeiturasSensor(Date.now() - (LEITURA_RECENTE_MIN + 5) * 60 * 1000) ?? [];
   const recente = leituraRecente(recentes);
   const sinc = resumo.ultimaSincronizacao;
@@ -120,10 +122,11 @@ export default function Treino({ resumo, configuracoes }: { resumo: Resumo; conf
       ) : etapa.tipo === "resultado" ? (
         <ResultadoForaDaFaixa etapa={etapa} configuracoes={configuracoes} onFim={voltar} />
       ) : etapa.tipo === "sem_treino" ? (
-        <SemTreino descansosRestantes={resumo.descansosRestantes} onFim={voltar} />
+        <SemTreino descansosRestantes={resumo.descansosRestantes} comGlicose={comGlicose} onFim={voltar} />
       ) : (
         <>
-          <button className="principal" onClick={() => setEtapa({ tipo: "checando" })}>
+          {/* Com a glicose desligada, o treino começa direto, sem a pergunta da checagem. */}
+          <button className="principal" onClick={() => (comGlicose ? setEtapa({ tipo: "checando" }) : void iniciarTreino("sem_checagem"))}>
             Vou treinar
           </button>
           {!hoje.garantido && (
@@ -310,7 +313,8 @@ function EmAndamento(p: { id: number; iniciadoEm: string; turno: "manha" | "noit
 }
 
 /** Pausa legítima ou descanso planejado. */
-function SemTreino({ descansosRestantes, onFim }: { descansosRestantes: number; onFim: () => void }) {
+function SemTreino({ descansosRestantes, comGlicose, onFim }: { descansosRestantes: number; comGlicose: boolean; onFim: () => void }) {
+  const motivos = (Object.keys(NOMES_MOTIVO) as MotivoPausa[]).filter((m) => comGlicose || (m !== "hipo" && m !== "glicose_fora"));
   const marcar = (tipo: "pausa" | "descanso", motivo?: MotivoPausa) => {
     void marcarDia(tipo, motivo);
     onFim();
@@ -319,7 +323,7 @@ function SemTreino({ descansosRestantes, onFim }: { descansosRestantes: number; 
     <div className="etapa">
       <p className="situacao">Pausa legítima (vale o mesmo XP de um treino e não quebra a sequência):</p>
       <div className="chips">
-        {(Object.keys(NOMES_MOTIVO) as MotivoPausa[]).map((m) => (
+        {motivos.map((m) => (
           <button key={m} className="chip" onClick={() => marcar("pausa", m)}>
             {NOMES_MOTIVO[m]}
           </button>

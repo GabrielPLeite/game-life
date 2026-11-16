@@ -2,7 +2,7 @@
 // Regra geral: nada é apagado de verdade. Desfazer marca o registro com "excluidoEm".
 import Dexie, { type EntityTable } from "dexie";
 import type { LeituraSensor, Tendencia } from "./sensor";
-import { META_AGUA_PADRAO_ML, diaLogico, turnoDoHorario, type LimitesGlicose, type ResultadoChecagem } from "./regras";
+import { META_AGUA_PADRAO_ML, diaLogico, somarDias, turnoDoHorario, type LimitesGlicose, type MudancaDeModo, type ResultadoChecagem, type TipoMeta } from "./regras";
 
 /** De onde veio um registro. Hoje é sempre manual; relógio e sensor entram depois. */
 export type Origem = "manual" | "relogio" | "sensor";
@@ -92,6 +92,50 @@ export interface CompraLoja {
   excluidoEm?: string;
 }
 
+// ---------- Metas pessoais (versão generalista) ----------
+
+/** Uma meta diária que você cria: tempo de tela, jogos, estudo... Sempre em minutos por dia. */
+export interface Meta {
+  /** Texto (não número), para o mesmo registro valer em mais de um aparelho no futuro. */
+  id: string;
+  nome: string;
+  icone: string;
+  tipo: TipoMeta;
+  /** Alvo atual em minutos por dia. Cada lançamento guarda o alvo que valia na hora. */
+  alvoMin: number;
+  /** Botões rápidos com rótulo (ex.: Leitura, Vídeo/curso). */
+  etiquetas?: string[];
+  /** Lembrete de onde achar o número ou do que conta. */
+  dica?: string;
+  ordem: number;
+  criadoEm: string;
+  /** Meta pausada: some da tela Hoje, mas o histórico fica. */
+  arquivadaEm?: string;
+}
+
+export interface RegistroMeta {
+  id: string;
+  metaId: string;
+  dia: string;
+  criadoEm: string;
+  minutos: number;
+  /** true = "o total do dia foi este"; vazio = soma ao que já havia. */
+  total?: boolean;
+  /** Tipo e alvo da meta no momento do lançamento: mudar a meta depois não altera o passado. */
+  tipo: TipoMeta;
+  alvoMin: number;
+  etiqueta?: string;
+  excluidoEm?: string;
+}
+
+/** Metas que já vêm criadas. Os ids fixos evitam duplicar se isto rodar de novo. */
+export const METAS_INICIAIS: Omit<Meta, "criadoEm">[] = [
+  { id: "tela-celular", nome: "Tela no celular", icone: "📱", tipo: "limite", alvoMin: 60, ordem: 1, dica: "O número está em Configurações > Bem-estar digital do celular." },
+  { id: "tela-pc", nome: "Tela no PC (lazer)", icone: "🖥️", tipo: "limite", alvoMin: 180, ordem: 2, dica: "Conte só o tempo de lazer. Trabalho e estudo ficam de fora." },
+  { id: "jogos", nome: "Jogos", icone: "🎮", tipo: "limite", alvoMin: 120, ordem: 3, dica: "Some todos os aparelhos: celular, PC e console." },
+  { id: "estudo", nome: "Estudo e leitura", icone: "📚", tipo: "minimo", alvoMin: 30, ordem: 4, etiquetas: ["Leitura", "Vídeo/curso"] },
+];
+
 export interface Dia {
   dia: string;
   /** Meta de água que valia naquele dia. Mudar a meta depois não altera o passado. */
@@ -124,7 +168,15 @@ export interface Configuracoes extends LimitesGlicose {
   /** Herói do jogo. Vazio até você criar o personagem. */
   heroiNome?: string;
   heroiClasse?: "guerreiro" | "patrulheiro" | "clerigo" | "mago";
+  /**
+   * Quando a parte de glicose foi ligada ou desligada. A última entrada diz o estado atual.
+   * Vazio = app de antes da versão generalista (glicose ligada).
+   */
+  glicoseHistorico?: MudancaDeModo[];
 }
+
+/** A parte de glicose (medições, sensor, checagem antes do treino, relatório) está ligada agora? */
+export const glicoseLigada = (c: Configuracoes) => c.glicoseHistorico?.at(-1)?.ligada ?? true;
 
 /** Valores iniciais, informados pelo Gabriel. Todos editáveis na tela de configurações. */
 export const CONFIG_PADRAO: Configuracoes = {
@@ -149,6 +201,8 @@ class Banco extends Dexie {
   compras!: EntityTable<CompraLoja, "id">;
   sensor!: EntityTable<LeituraSensor, "ts">;
   sincronizacoes!: EntityTable<SincronizacaoSensor, "id">;
+  metas!: EntityTable<Meta, "id">;
+  registrosMeta!: EntityTable<RegistroMeta, "id">;
   dias!: EntityTable<Dia, "dia">;
   configuracoes!: EntityTable<Configuracoes, "id">;
 
@@ -201,6 +255,8 @@ class Banco extends Dexie {
       dias: "dia",
       configuracoes: "id",
     });
+    // Versão 6: metas pessoais (tela, jogos, estudo...). Só acrescenta tabelas; o resto fica como está.
+    this.version(6).stores({ metas: "id", registrosMeta: "id, dia, metaId" });
   }
 }
 
@@ -311,6 +367,72 @@ export async function excluirHabito(id: number): Promise<void> {
   await db.habitos.update(id, { excluidoEm: agoraIso() });
 }
 
+// ---------- Metas pessoais ----------
+
+const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+/**
+ * Prepara a versão generalista na primeira vez que ela abre neste aparelho:
+ * desliga a parte de glicose (sem apagar nada) e cria as metas iniciais.
+ */
+export async function prepararVersaoGeneralista(): Promise<void> {
+  await db.transaction("rw", db.configuracoes, db.metas, async () => {
+    const c = await lerConfiguracoes();
+    if (c.glicoseHistorico) return;
+    await db.configuracoes.put({ ...c, glicoseHistorico: [{ desde: diaLogico(), ligada: false }], id: "unica" });
+    if ((await db.metas.count()) === 0) await db.metas.bulkPut(METAS_INICIAIS.map((m) => ({ ...m, criadoEm: agoraIso() })));
+  });
+}
+
+/** Liga ou desliga a parte de glicose a partir de hoje. Nada é apagado nos dois sentidos. */
+export async function definirGlicose(ligada: boolean): Promise<void> {
+  const c = await lerConfiguracoes();
+  const hoje = diaLogico();
+  // Trocar duas vezes no mesmo dia substitui a entrada do dia em vez de empilhar.
+  const historico = [...(c.glicoseHistorico ?? []).filter((m) => m.desde !== hoje), { desde: hoje, ligada }];
+  await db.configuracoes.put({ ...c, glicoseHistorico: historico, id: "unica" });
+}
+
+/**
+ * Lança minutos em uma meta. "ontem" serve para fechar o dia anterior (tempo de tela só fica completo no dia seguinte).
+ * total = true quer dizer "o total do dia foi este".
+ */
+export async function registrarMeta(meta: Meta, minutos: number, opcoes: { ontem?: boolean; total?: boolean; etiqueta?: string } = {}): Promise<void> {
+  await garantirDia();
+  await db.registrosMeta.add({
+    id: novoId(),
+    metaId: meta.id,
+    dia: opcoes.ontem ? somarDias(diaLogico(), -1) : diaLogico(),
+    criadoEm: agoraIso(),
+    minutos,
+    total: opcoes.total || undefined,
+    tipo: meta.tipo,
+    alvoMin: meta.alvoMin,
+    etiqueta: opcoes.etiqueta,
+  });
+}
+
+/** Desfaz o último lançamento de uma meta em um dia. */
+export async function desfazerUltimoRegistroMeta(metaId: string, dia: string): Promise<void> {
+  const doDia = (await db.registrosMeta.where("dia").equals(dia).toArray()).filter((r) => r.metaId === metaId && !r.excluidoEm);
+  const ultimo = doDia.sort((a, b) => a.criadoEm.localeCompare(b.criadoEm)).at(-1);
+  if (ultimo) await db.registrosMeta.update(ultimo.id, { excluidoEm: agoraIso() });
+}
+
+export async function criarMeta(nome: string, tipo: TipoMeta, alvoMin: number, icone: string): Promise<void> {
+  const ordem = (await db.metas.count()) + 1;
+  await db.metas.add({ id: novoId(), nome, icone, tipo, alvoMin, ordem, criadoEm: agoraIso() });
+}
+
+export async function mudarMeta(id: string, mudancas: Partial<Pick<Meta, "alvoMin" | "nome">>): Promise<void> {
+  await db.metas.update(id, mudancas);
+}
+
+/** Pausa (ou retoma) uma meta. O histórico continua guardado. */
+export async function pausarMeta(id: string, pausar: boolean): Promise<void> {
+  await db.metas.update(id, { arquivadaEm: pausar ? agoraIso() : undefined });
+}
+
 // ---------- Recompensas ----------
 
 export async function criarRecompensa(nome: string, nivel: number, custoOuro?: number): Promise<void> {
@@ -352,7 +474,7 @@ export const leiturasDoSensorDesde = (ts: number) => db.sensor.where("ts").above
 export async function exportarTudo() {
   return {
     app: "game-life",
-    versao: 5,
+    versao: 6,
     exportadoEm: agoraIso(),
     configuracoes: await lerConfiguracoes(),
     dias: await db.dias.toArray(),
@@ -365,6 +487,8 @@ export async function exportarTudo() {
     compras: await db.compras.toArray(),
     sensor: await db.sensor.toArray(),
     sincronizacoes: await db.sincronizacoes.toArray(),
+    metas: await db.metas.toArray(),
+    registrosMeta: await db.registrosMeta.toArray(),
   };
 }
 
@@ -372,11 +496,11 @@ export type Backup = Awaited<ReturnType<typeof exportarTudo>>;
 
 /**
  * Restaura um backup: apaga os dados atuais deste aparelho e grava os do arquivo.
- * Aceita backups das versões 1 a 4 (tabelas que não existiam ficam vazias).
+ * Aceita backups de versões antigas (tabelas que não existiam ficam vazias).
  */
 export async function restaurarBackup(dados: Partial<Backup> & { app?: string }): Promise<void> {
   if (dados.app !== "game-life") throw new Error("Este arquivo não é um backup do Game Life.");
-  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.sensor, db.sincronizacoes, db.dias, db.configuracoes];
+  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.sensor, db.sincronizacoes, db.metas, db.registrosMeta, db.dias, db.configuracoes];
   await db.transaction("rw", tabelas, async () => {
     await Promise.all(tabelas.map((t) => t.clear()));
     await db.agua.bulkPut(dados.agua ?? []);
@@ -388,7 +512,11 @@ export async function restaurarBackup(dados: Partial<Backup> & { app?: string })
     await db.compras.bulkPut(dados.compras ?? []);
     await db.sensor.bulkPut(dados.sensor ?? []);
     await db.sincronizacoes.bulkPut(dados.sincronizacoes ?? []);
+    await db.metas.bulkPut(dados.metas ?? []);
+    await db.registrosMeta.bulkPut(dados.registrosMeta ?? []);
     await db.dias.bulkPut(dados.dias ?? []);
     if (dados.configuracoes) await db.configuracoes.put({ ...CONFIG_PADRAO, ...dados.configuracoes, id: "unica" });
   });
+  // Backup de antes da versão generalista: aplica a mesma preparação da primeira abertura.
+  await prepararVersaoGeneralista();
 }

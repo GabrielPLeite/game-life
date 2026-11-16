@@ -18,7 +18,7 @@ export default function CriarHeroi() {
         }}
       >
         <h1 id="criar-titulo">Crie seu herói</h1>
-        <p className="situacao">Cada treino, copo de água e medição vira um golpe nos monstros. Seu herói cresce com o que você faz de verdade.</p>
+        <p className="situacao">Cada treino, meta cumprida e copo de água vira um golpe nos monstros. Seu herói cresce com o que você faz de verdade.</p>
         <input className="texto" aria-label="Nome do herói" placeholder="Nome do herói" maxLength={20} value={nome} onChange={(e) => setNome(e.target.value)} />
         <div className="classes">
           {(Object.keys(CLASSES) as Classe[]).map((c) => (
@@ -29,7 +29,7 @@ export default function CriarHeroi() {
             </button>
           ))}
         </div>
-        <p className="nota">A classe dá um bônus pequeno e muda o visual. Todas ganham o mesmo XP; nenhuma depende do valor da glicose.</p>
+        <p className="nota">A classe dá um bônus pequeno e muda o visual. Todas ganham o mesmo XP.</p>
         <button className="principal" type="submit" disabled={!nome.trim()}>
           Começar a aventura
         </button>
