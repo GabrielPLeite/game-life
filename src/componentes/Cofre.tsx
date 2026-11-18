@@ -1,4 +1,4 @@
-// Cofre: guarda uma senha que você não sabe de cor (a do app de bloqueio, por exemplo).
+// Cofre: guarda uma senha que você prefere não saber de cor.
 // Para ver a senha, é preciso ficar 30 minutos seguidos nesta tela. Sair, apagar a tela ou mexer
 // no relógio do celular zera a espera. A senha fica só neste aparelho e não vai para o backup.
 import { useEffect, useRef, useState } from "react";
@@ -47,7 +47,7 @@ export default function Cofre() {
     return (
       <div className="etapa cofre">
         <p className="nota">
-          Gere uma senha forte e use-a no app de bloqueio. Ela some da tela e só volta depois de {ESPERA_MIN} minutos seguidos aqui.
+          Gere uma senha forte e use-a onde quiser. Ela some da tela e só volta depois de {ESPERA_MIN} minutos seguidos aqui.
         </p>
         <button className="discreto" onClick={() => void guardarNova()}>
           Gerar senha
@@ -59,7 +59,7 @@ export default function Cofre() {
   if (mostrarNova) {
     return (
       <div className="etapa cofre">
-        <p className="nota">Copie esta senha para o app de bloqueio agora. Ela não vai aparecer de novo sem a espera.</p>
+        <p className="nota">Copie esta senha agora. Ela não vai aparecer de novo sem a espera.</p>
         <Senha valor={mostrarNova} />
         <button className="discreto" onClick={() => setMostrarNova(null)}>
           Já usei, pode esconder
@@ -174,7 +174,7 @@ function Liberada({ senha, ate, onFim, onTrocar }: { senha: string; ate: number;
   return (
     <div className="etapa cofre">
       <Senha valor={senha} />
-      <p className="nota">Some em {mmss(ate - agora)}. Depois de usar, troque a senha no app de bloqueio por uma nova para a próxima vez.</p>
+      <p className="nota">Some em {mmss(ate - agora)}. Depois de usar, gere uma nova e troque onde ela é usada.</p>
       <button className="discreto" onClick={onTrocar}>
         Gerar senha nova
       </button>
