@@ -139,6 +139,7 @@ export function montarResumo(d: Dados, hoje: string) {
       sono: a.sono,
       sequencia: s.sequencia,
       metasCumpridas: metasDoDia(s.dia).filter((m) => m.tipo === "minimo" && m.cumprida).length,
+      jardim: vasosRespondidos(s.dia),
     });
   }
 

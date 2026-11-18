@@ -25,8 +25,9 @@ export default function Habitos({ resumo, comGlicose }: { resumo: Resumo; comGli
   const de = <T extends Habito["tipo"]>(tipo: T) => hoje.filter((h): h is Extract<Habito, { tipo: T }> => h.tipo === tipo);
   return (
     <>
-      <Refeicoes refeicoes={de("refeicao")} caminhadas={de("caminhada")} />
-      <Sono registros={de("sono")} />
+      {/* Refeições e sono só aparecem com a parte de glicose ligada. O sono deve voltar vindo do relógio. */}
+      {comGlicose && <Refeicoes refeicoes={de("refeicao")} caminhadas={de("caminhada")} />}
+      {comGlicose && <Sono registros={de("sono")} />}
       {comGlicose && <Insulina registros={de("insulina")} />}
       <Medidas registros={de("medida")} />
     </>

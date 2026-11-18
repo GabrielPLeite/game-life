@@ -73,4 +73,11 @@ describe("análises", () => {
   it("CSV com ponto e vírgula e vírgula decimal", () => {
     expect(paraCsv([{ a: 1.5, b: "x;y" }, { a: 2 }])).toBe('a;b\n1,5;"x;y"\n2;');
   });
+
+  it("sem glicose, caminhadas e sono dão lugar a treinos e jardim", () => {
+    const semana = [0, 1, 2, 3, 4, 5, 6].map((i) => dia(i, { garantido: true, treinos: 2, metaAgua: true, metasCumpridas: 1, jardim: 1 }));
+    const ids = missoesDaSemana(semana, false).map((m) => m.id);
+    expect(ids).toEqual(["garantidos", "agua", "treinos", "metas", "jardim"]);
+    expect(missoesDaSemana(semana, false).every((m) => m.concluida)).toBe(true);
+  });
 });
