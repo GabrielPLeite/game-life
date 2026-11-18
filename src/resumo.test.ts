@@ -21,7 +21,7 @@ describe("montarResumo", () => {
     const r = montarResumo(d, "2026-11-11");
     expect(r.hoje.garantido).toBe(true);
     expect(r.sequencia.atual).toBe(1);
-    expect(r.xpHoje.partes).toEqual({ treinos: 40, checagens: 10, glicose: 5, agua: 0, dia: 20, bonus: 2, habitos: 0, metas: 0 });
+    expect(r.xpHoje.partes).toEqual({ treinos: 40, checagens: 10, glicose: 5, agua: 0, dia: 20, bonus: 2, habitos: 0, metas: 0, jardim: 0 });
     expect(r.ultimoTipo.manha).toBe("esteira");
   });
 
@@ -131,5 +131,14 @@ describe("montarResumo com hábitos e semana", () => {
       d.configuracoes = { ...d.configuracoes, glicoseHistorico: [...d.configuracoes.glicoseHistorico!, { desde: "2026-11-17", ligada: true }] };
       expect(montarResumo(d, "2026-11-17").jogo.missoes.map((m) => m.id)).toContain("glicose");
     });
+  });
+
+  it("jardim: cada vaso respondido vale XP, com reguei ou com não, sem contar o mesmo vaso duas vezes", () => {
+    const d = vazio();
+    const rega = (id: string, vasoId: string, regou: boolean) => ({ id, vasoId, dia: "2026-11-18", regou, criadoEm: "" });
+    d.regas = [rega("a", "v1", true), rega("b", "v1", false), rega("c", "v2", false)];
+    expect(montarResumo(d, "2026-11-18").xpHoje.partes.jardim).toBe(10);
+    d.regas.push(rega("d", "v3", true), rega("e", "v4", true));
+    expect(montarResumo(d, "2026-11-18").xpHoje.partes.jardim).toBe(15);
   });
 });

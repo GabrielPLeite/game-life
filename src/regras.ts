@@ -97,6 +97,9 @@ export const MAX_CAMINHADAS = 3;
 export const XP_SONO = 5; // uma vez por dia
 export const XP_MEDIDA = 5; // peso/cintura, uma vez por dia
 export const XP_INSULINA = 5; // uma vez por dia, qualquer que seja o número de aplicações
+/** Jardim: XP por vaso respondido no dia, valendo igual para "reguei" e "não". Conta até MAX_VASOS_COM_XP vasos. */
+export const XP_POR_REGA = 5;
+export const MAX_VASOS_COM_XP = 3;
 
 /**
  * Metas de "ficar abaixo de" (tempo de tela no celular, no PC e jogos) estão desligadas por enquanto.
@@ -124,6 +127,8 @@ export interface AtividadeDoDia {
   insulina?: boolean;
   /** XP das metas pessoais do dia (tela, jogos, estudo...), já calculado por xpMeta. */
   metas?: number;
+  /** Vasos do jardim respondidos no dia (reguei ou não). */
+  regas?: number;
 }
 
 export function bonusDeSequencia(sequencia: number): number {
@@ -146,6 +151,7 @@ export function xpDoDia(a: AtividadeDoDia) {
       (a.medida ? XP_MEDIDA : 0) +
       (a.insulina ? XP_INSULINA : 0),
     metas: a.metas ?? 0,
+    jardim: Math.min(a.regas ?? 0, MAX_VASOS_COM_XP) * XP_POR_REGA,
   };
   const total = Object.values(partes).reduce((s, v) => s + v, 0);
   return { total, partes };

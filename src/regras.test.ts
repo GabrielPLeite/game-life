@@ -75,7 +75,7 @@ describe("xpDoDia", () => {
   const base = { sessoes: 0, checagens: 0, glicoses: 0, aguaMl: 0, metaAguaMl: 2500, garantido: false, sequencia: 0 };
   it("dia normal: 1 treino com checagem, 3 glicoses, meta de água, sequência 5", () => {
     const { total, partes } = xpDoDia({ ...base, sessoes: 1, checagens: 1, glicoses: 3, aguaMl: 2500, garantido: true, sequencia: 5 });
-    expect(partes).toEqual({ treinos: 40, checagens: 10, glicose: 15, agua: 30, dia: 20, bonus: 10, habitos: 0, metas: 0 });
+    expect(partes).toEqual({ treinos: 40, checagens: 10, glicose: 15, agua: 30, dia: 20, bonus: 10, habitos: 0, metas: 0, jardim: 0 });
     expect(total).toBe(125);
   });
   it("hábitos: tetos e uma vez por dia para sono, medida e insulina", () => {

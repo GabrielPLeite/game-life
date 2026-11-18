@@ -1,6 +1,6 @@
 // Junta todos os registros e aplica as regras do jogo.
 // Função pura: recebe os dados do banco e devolve tudo o que a tela precisa mostrar.
-import type { CompraLoja, Configuracoes, Dia, Habito, Marcacao, Meta, Recompensa, RegistroMeta, RegistroAgua, RegistroGlicose, RegistroTreino, SincronizacaoSensor, TipoTreino } from "./db";
+import type { CompraLoja, Rega, Configuracoes, Dia, Habito, Marcacao, Meta, Recompensa, RegistroMeta, RegistroAgua, RegistroGlicose, RegistroTreino, SincronizacaoSensor, TipoTreino } from "./db";
 import { agruparPorSemana, chefeDaSemana, conquistas, missoesDaSemana, planoEsteira, xpDaSemana, type DiaResumido } from "./jogo";
 import {
   calcularSequencia,
@@ -33,6 +33,8 @@ export interface Dados {
   sincronizacoes?: SincronizacaoSensor[];
   metas?: Meta[];
   registrosMeta?: RegistroMeta[];
+  /** Respostas do jardim. Só importa quantos vasos foram respondidos em cada dia. */
+  regas?: Rega[];
 }
 
 /** Agrupa registros ativos (não excluídos) por dia. */
@@ -62,6 +64,9 @@ export function montarResumo(d: Dados, hoje: string) {
 
   // ---------- Metas pessoais (tela, jogos, estudo...) ----------
   const registrosMeta = porDia(d.registrosMeta ?? []);
+  const regas = porDia(d.regas ?? []);
+  /** Vasos diferentes respondidos no dia (responder de novo o mesmo vaso não conta duas vezes). */
+  const vasosRespondidos = (dia: string) => new Set((regas.get(dia) ?? []).map((r) => r.vasoId)).size;
   const metasAtivas = (d.metas ?? []).filter((m) => !m.arquivadaEm && (METAS_DE_LIMITE_LIGADAS || m.tipo !== "limite")).sort((a, b) => a.ordem - b.ordem);
   /** Situação de cada meta com lançamento em um dia. Tipo e alvo vêm do último lançamento do dia. */
   const metasDoDia = (dia: string) => {
@@ -92,7 +97,7 @@ export function montarResumo(d: Dados, hoje: string) {
   };
 
   // O jogo começa no primeiro dia com qualquer registro.
-  const todosOsDias = [...d.dias.map((x) => x.dia), ...agua.keys(), ...glicose.keys(), ...treinos.keys(), ...marcacoes.keys(), ...habitos.keys(), ...registrosMeta.keys()];
+  const todosOsDias = [...d.dias.map((x) => x.dia), ...agua.keys(), ...glicose.keys(), ...treinos.keys(), ...marcacoes.keys(), ...habitos.keys(), ...registrosMeta.keys(), ...regas.keys()];
   const primeiroDia = todosOsDias.length ? todosOsDias.reduce((a, b) => (a < b ? a : b)) : hoje;
   const compras = (d.compras ?? []).filter((c) => !c.excluidoEm);
   const pocoesEm = (dia: string) => compras.filter((c) => c.itemId === POCAO_DE_GELO && c.dia === dia).length;
@@ -112,6 +117,7 @@ export function montarResumo(d: Dados, hoje: string) {
     medida: habitosDe(dia, "medida").length > 0,
     insulina: habitosDe(dia, "insulina").length > 0,
     metas: metasDoDia(dia).reduce((x, m) => x + m.xp, 0),
+    regas: vasosRespondidos(dia),
   });
 
   // O XP total é sempre recalculado a partir dos registros, nunca guardado como saldo.
