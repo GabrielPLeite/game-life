@@ -136,6 +136,29 @@ export const METAS_INICIAIS: Omit<Meta, "criadoEm">[] = [
   { id: "estudo", nome: "Estudo e leitura", icone: "📚", tipo: "minimo", alvoMin: 30, ordem: 4, etiquetas: ["Leitura", "Vídeo/curso"] },
 ];
 
+// ---------- Jardim ----------
+
+/** Um vaso do jardim. O nome é o da planta; o que cada vaso representa fica só na sua cabeça. */
+export interface Vaso {
+  id: string;
+  nome: string;
+  ordem: number;
+  /** Dia em que o vaso foi plantado (a contagem começa aqui). */
+  desde: string;
+  criadoEm: string;
+  arquivadoEm?: string;
+}
+
+/** Resposta do dia para um vaso: reguei ou não. */
+export interface Rega {
+  id: string;
+  vasoId: string;
+  dia: string;
+  regou: boolean;
+  criadoEm: string;
+  excluidoEm?: string;
+}
+
 export interface Dia {
   dia: string;
   /** Meta de água que valia naquele dia. Mudar a meta depois não altera o passado. */
@@ -203,6 +226,8 @@ class Banco extends Dexie {
   sincronizacoes!: EntityTable<SincronizacaoSensor, "id">;
   metas!: EntityTable<Meta, "id">;
   registrosMeta!: EntityTable<RegistroMeta, "id">;
+  vasos!: EntityTable<Vaso, "id">;
+  regas!: EntityTable<Rega, "id">;
   dias!: EntityTable<Dia, "dia">;
   configuracoes!: EntityTable<Configuracoes, "id">;
 
@@ -257,6 +282,8 @@ class Banco extends Dexie {
     });
     // Versão 6: metas pessoais (tela, jogos, estudo...). Só acrescenta tabelas; o resto fica como está.
     this.version(6).stores({ metas: "id", registrosMeta: "id, dia, metaId" });
+    // Versão 7: jardim. Só acrescenta tabelas.
+    this.version(7).stores({ vasos: "id", regas: "id, dia, vasoId" });
   }
 }
 
@@ -433,6 +460,33 @@ export async function pausarMeta(id: string, pausar: boolean): Promise<void> {
   await db.metas.update(id, { arquivadaEm: pausar ? agoraIso() : undefined });
 }
 
+// ---------- Jardim ----------
+
+export async function plantarVaso(nome: string): Promise<void> {
+  const ordem = (await db.vasos.count()) + 1;
+  await db.vasos.add({ id: novoId(), nome, ordem, desde: diaLogico(), criadoEm: agoraIso() });
+}
+
+/** Guarda a resposta do dia (hoje ou ontem). Responder de novo no mesmo dia substitui a anterior. */
+export async function regar(vasoId: string, dia: string, regou: boolean): Promise<void> {
+  await db.transaction("rw", db.regas, async () => {
+    const antigas = (await db.regas.where("dia").equals(dia).toArray()).filter((r) => r.vasoId === vasoId && !r.excluidoEm);
+    for (const r of antigas) await db.regas.update(r.id, { excluidoEm: agoraIso() });
+    await db.regas.add({ id: novoId(), vasoId, dia, regou, criadoEm: agoraIso() });
+  });
+}
+
+/** Apaga a resposta de um dia, para responder de novo. */
+export async function desfazerRega(vasoId: string, dia: string): Promise<void> {
+  const doDia = (await db.regas.where("dia").equals(dia).toArray()).filter((r) => r.vasoId === vasoId && !r.excluidoEm);
+  for (const r of doDia) await db.regas.update(r.id, { excluidoEm: agoraIso() });
+}
+
+/** Tira o vaso do jardim. As respostas antigas ficam guardadas. */
+export async function guardarVaso(id: string): Promise<void> {
+  await db.vasos.update(id, { arquivadoEm: agoraIso() });
+}
+
 // ---------- Recompensas ----------
 
 export async function criarRecompensa(nome: string, nivel: number, custoOuro?: number): Promise<void> {
@@ -474,7 +528,7 @@ export const leiturasDoSensorDesde = (ts: number) => db.sensor.where("ts").above
 export async function exportarTudo() {
   return {
     app: "game-life",
-    versao: 6,
+    versao: 7,
     exportadoEm: agoraIso(),
     configuracoes: await lerConfiguracoes(),
     dias: await db.dias.toArray(),
@@ -489,6 +543,8 @@ export async function exportarTudo() {
     sincronizacoes: await db.sincronizacoes.toArray(),
     metas: await db.metas.toArray(),
     registrosMeta: await db.registrosMeta.toArray(),
+    vasos: await db.vasos.toArray(),
+    regas: await db.regas.toArray(),
   };
 }
 
@@ -500,7 +556,7 @@ export type Backup = Awaited<ReturnType<typeof exportarTudo>>;
  */
 export async function restaurarBackup(dados: Partial<Backup> & { app?: string }): Promise<void> {
   if (dados.app !== "game-life") throw new Error("Este arquivo não é um backup do Game Life.");
-  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.sensor, db.sincronizacoes, db.metas, db.registrosMeta, db.dias, db.configuracoes];
+  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.sensor, db.sincronizacoes, db.metas, db.registrosMeta, db.vasos, db.regas, db.dias, db.configuracoes];
   await db.transaction("rw", tabelas, async () => {
     await Promise.all(tabelas.map((t) => t.clear()));
     await db.agua.bulkPut(dados.agua ?? []);
@@ -514,6 +570,8 @@ export async function restaurarBackup(dados: Partial<Backup> & { app?: string })
     await db.sincronizacoes.bulkPut(dados.sincronizacoes ?? []);
     await db.metas.bulkPut(dados.metas ?? []);
     await db.registrosMeta.bulkPut(dados.registrosMeta ?? []);
+    await db.vasos.bulkPut(dados.vasos ?? []);
+    await db.regas.bulkPut(dados.regas ?? []);
     await db.dias.bulkPut(dados.dias ?? []);
     if (dados.configuracoes) await db.configuracoes.put({ ...CONFIG_PADRAO, ...dados.configuracoes, id: "unica" });
   });

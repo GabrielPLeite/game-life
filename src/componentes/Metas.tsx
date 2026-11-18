@@ -2,7 +2,7 @@
 // Dois tipos: "ficar abaixo de" (limite) e "fazer pelo menos" (mínimo). Sempre em minutos por dia.
 import { useState } from "react";
 import { criarMeta, desfazerUltimoRegistroMeta, mudarMeta, pausarMeta, registrarMeta, type Meta } from "../db";
-import { MAX_MINUTOS_COM_XP, MINUTOS_POR_BLOCO, XP_DENTRO_DO_LIMITE, XP_POR_BLOCO, XP_REGISTRAR_LIMITE, diaLogico, type TipoMeta } from "../regras";
+import { METAS_DE_LIMITE_LIGADAS, MAX_MINUTOS_COM_XP, MINUTOS_POR_BLOCO, XP_DENTRO_DO_LIMITE, XP_POR_BLOCO, XP_REGISTRAR_LIMITE, diaLogico, type TipoMeta } from "../regras";
 import type { Resumo } from "../resumo";
 
 type MetaNaTela = Resumo["metas"][number];
@@ -167,7 +167,9 @@ const NOMES_TIPO: Record<TipoMeta, string> = { limite: "Ficar abaixo de", minimo
 export function GerenciarMetas({ metas }: { metas: Meta[] }) {
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState<TipoMeta>("minimo");
-  const ordenadas = [...metas].sort((a, b) => a.ordem - b.ordem);
+  // Metas de limite desligadas por enquanto: somem também daqui (os dados ficam guardados).
+  const ordenadas = [...metas].filter((m) => METAS_DE_LIMITE_LIGADAS || m.tipo !== "limite").sort((a, b) => a.ordem - b.ordem);
+  const tipos = (Object.keys(NOMES_TIPO) as TipoMeta[]).filter((t) => METAS_DE_LIMITE_LIGADAS || t !== "limite");
   return (
     <div className="etapa">
       <h3>Minhas metas</h3>
@@ -204,9 +206,9 @@ export function GerenciarMetas({ metas }: { metas: Meta[] }) {
         }}
       >
         <label htmlFor="nova-meta">Nova meta diária</label>
-        <input id="nova-meta" className="texto" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex.: Inglês, Meditação, Redes sociais" maxLength={40} />
-        <div className="chips" role="group" aria-label="Tipo da meta">
-          {(Object.keys(NOMES_TIPO) as TipoMeta[]).map((t) => (
+        <input id="nova-meta" className="texto" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="ex.: Inglês, Meditação, Alongamento" maxLength={40} />
+        <div className="chips" role="group" aria-label="Tipo da meta" hidden={tipos.length < 2}>
+          {tipos.map((t) => (
             <button type="button" key={t} className={t === tipo ? "chip ativo" : "chip"} aria-pressed={t === tipo} onClick={() => setTipo(t)}>
               {NOMES_TIPO[t]}
             </button>

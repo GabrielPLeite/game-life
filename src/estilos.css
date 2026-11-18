@@ -511,3 +511,13 @@ header.heroi > * { min-width: 0; }
 .chefe-palco { background: radial-gradient(circle at 50% 75%, #d9c796 0%, #a88c58 55%, #6b4a2a 100%); }
 .retrato { background: #d9c796; }
 .dano-flutuante { color: #fff8e0; text-shadow: 0 2px 0 #2b1d0e, 0 0 6px #7a1f1f; }
+
+/* ---------- Jardim ---------- */
+.jardim .vaso { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.5rem 0; border-top: 1px dashed #2b1d0e33; }
+.jardim .vaso:first-of-type { border-top: 0; }
+.jardim .planta { flex: none; background: #d9c79655; border-radius: 6px; }
+.jardim .vaso-texto { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; flex: 1; }
+.jardim .vaso-texto .botoes { margin-top: 0.2rem; }
+.jardim .rega-ontem { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.jardim .perda { color: #7a1f1f; }
+.jardim .rega-ontem .link { padding: 0; min-height: 0; }
