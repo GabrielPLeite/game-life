@@ -9,6 +9,7 @@ import Treino from "./componentes/Treino";
 import Agua from "./componentes/Agua";
 import Glicose from "./componentes/Glicose";
 import Metas from "./componentes/Metas";
+import Jardim from "./componentes/Jardim";
 import Habitos from "./componentes/Habitos";
 import Jogo from "./componentes/Jogo";
 import Analises from "./componentes/Analises";
@@ -17,6 +18,20 @@ import Batalha, { AvisoDeGolpe, useGolpe } from "./componentes/Batalha";
 import CriarHeroi from "./componentes/CriarHeroi";
 import { tituloDoNivel } from "./rpg";
 import { AvisoSensor, useImportarSensor } from "./componentes/Sensor";
+
+/**
+ * Pede ao navegador para baixar a versão nova agora e recarrega a tela.
+ * Não apaga nenhum dado: só troca os arquivos do app.
+ */
+async function procurarAtualizacao() {
+  try {
+    const registro = await navigator.serviceWorker?.getRegistration();
+    await registro?.update();
+  } catch {
+    /* sem internet: recarrega com o que tiver */
+  }
+  location.reload();
+}
 
 /** Atualiza o "dia do jogo" a cada minuto, para o app virar o dia sozinho às 3h. */
 function useDiaLogico() {
@@ -76,7 +91,7 @@ export default function App() {
 
   // useLiveQuery relê o banco sozinho sempre que algo muda.
   const dados = useLiveQuery(async () => {
-    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta] = await Promise.all([
+    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas] = await Promise.all([
       lerConfiguracoes(),
       db.dias.toArray(),
       db.agua.toArray(),
@@ -89,8 +104,10 @@ export default function App() {
       db.sincronizacoes.toArray(),
       db.metas.toArray(),
       db.registrosMeta.toArray(),
+      db.vasos.toArray(),
+      db.regas.toArray(),
     ]);
-    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta };
+    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas };
   });
 
   const resumo = dados ? montarResumo(dados, hoje) : undefined;
@@ -129,6 +146,7 @@ export default function App() {
             <Treino resumo={resumo} configuracoes={dados.configuracoes} />
             <Metas resumo={resumo} />
             <Agua resumo={resumo} />
+            <Jardim vasos={dados.vasos} regas={dados.regas} hoje={hoje} />
             {comGlicose && <Glicose resumo={resumo} configuracoes={dados.configuracoes} />}
           </>
         )}
@@ -138,7 +156,12 @@ export default function App() {
         {aba !== "analises" && (
           <>
             <Configuracoes configuracoes={dados.configuracoes} metaAguaHoje={resumo.hoje.metaAguaMl} metas={dados.metas} />
-            <p className="nota versao">Versão {__VERSAO__}</p>
+            <p className="nota versao">
+              Versão {__VERSAO__} ·{" "}
+              <button className="link" onClick={() => void procurarAtualizacao()}>
+                procurar atualização
+              </button>
+            </p>
           </>
         )}
       </main>

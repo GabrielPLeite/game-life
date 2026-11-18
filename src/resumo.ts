@@ -6,6 +6,7 @@ import {
   calcularSequencia,
   glicoseLigadaEm,
   inicioDaSemana,
+  METAS_DE_LIMITE_LIGADAS,
   metaCumprida,
   minutosDoDia,
   somarDias,
@@ -61,7 +62,7 @@ export function montarResumo(d: Dados, hoje: string) {
 
   // ---------- Metas pessoais (tela, jogos, estudo...) ----------
   const registrosMeta = porDia(d.registrosMeta ?? []);
-  const metasAtivas = (d.metas ?? []).filter((m) => !m.arquivadaEm).sort((a, b) => a.ordem - b.ordem);
+  const metasAtivas = (d.metas ?? []).filter((m) => !m.arquivadaEm && (METAS_DE_LIMITE_LIGADAS || m.tipo !== "limite")).sort((a, b) => a.ordem - b.ordem);
   /** Situação de cada meta com lançamento em um dia. Tipo e alvo vêm do último lançamento do dia. */
   const metasDoDia = (dia: string) => {
     const porMeta = new Map<string, RegistroMeta[]>();

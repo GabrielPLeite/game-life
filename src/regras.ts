@@ -98,6 +98,12 @@ export const XP_SONO = 5; // uma vez por dia
 export const XP_MEDIDA = 5; // peso/cintura, uma vez por dia
 export const XP_INSULINA = 5; // uma vez por dia, qualquer que seja o número de aplicações
 
+/**
+ * Metas de "ficar abaixo de" (tempo de tela no celular, no PC e jogos) estão desligadas por enquanto.
+ * Nada é apagado: os registros antigos e o XP que já deram continuam. Para religar, troque para true.
+ */
+export const METAS_DE_LIMITE_LIGADAS = false;
+
 export interface AtividadeDoDia {
   /** Treinos concluídos + 1 se houve pausa legítima. Limitado a 2. */
   sessoes: number;
