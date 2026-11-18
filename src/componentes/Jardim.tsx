@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { desfazerRega, guardarVaso, plantarVaso, regar, type Rega, type Vaso } from "../db";
 import { ESPECIES, contarJardim, estagio } from "../jardim";
-import { somarDias } from "../regras";
+import { MAX_VASOS_COM_XP, XP_POR_REGA, somarDias } from "../regras";
 
 const TINTA = "#2b1d0e";
 
@@ -83,6 +83,11 @@ export default function Jardim({ vasos, regas, hoje }: { vasos: Vaso[]; regas: R
         <VasoNoDia key={v.id} vaso={v} regas={regas.filter((r) => r.vasoId === v.id && !r.excluidoEm)} hoje={hoje} cuidando={cuidando} />
       ))}
       {(ativos.length === 0 || cuidando) && <Plantar usados={ativos.map((v) => v.nome)} vazio={ativos.length === 0} />}
+      {ativos.length > 0 && (
+        <p className="nota">
+          Cada vaso respondido vale {XP_POR_REGA} XP no dia, com "reguei" ou com "não"{ativos.length > MAX_VASOS_COM_XP ? ` (até ${MAX_VASOS_COM_XP} vasos)` : ""}.
+        </p>
+      )}
     </section>
   );
 }
@@ -134,7 +139,7 @@ function VasoNoDia({ vaso, regas, hoje, cuidando }: { vaso: Vaso; regas: Rega[];
           </>
         ) : (
           <small>
-            {c.hoje ? "Regado hoje." : "Hoje ficou sem rega. Amanhã ela começa a brotar de novo."}{" "}
+            {c.hoje ? `Regado hoje, +${XP_POR_REGA} XP.` : `Hoje ficou sem rega. Responder valeu +${XP_POR_REGA} XP, e amanhã ela começa a brotar de novo.`}{" "}
             <button className="link" onClick={() => void desfazerRega(vaso.id, hoje)}>
               Mudar
             </button>

@@ -95,8 +95,22 @@ export const MAX_REFEICOES = 4;
 export const XP_POR_CAMINHADA = 10; // caminhada pós-refeição
 export const MAX_CAMINHADAS = 3;
 export const XP_SONO = 5; // uma vez por dia
+/** Bônus de sono (nunca tiram pontos): dormir entre 7 e 9 h, e deitar perto do horário de costume. */
+export const XP_SONO_DURACAO = 10;
+export const XP_SONO_REGULAR = 5;
+export const SONO_MIN_H = 7;
+export const SONO_MAX_H = 9;
+/** Deitar até 45 min antes ou depois da mediana das últimas 7 noites (precisa de pelo menos 3). */
+export const SONO_TOLERANCIA_MIN = 45;
+/** Bônus de glicose do sensor (nunca tira pontos): dia com 70% ou mais no alvo e até 4% abaixo de 70. */
+export const XP_GLICOSE_NO_ALVO = 15;
+export const NO_ALVO_MIN_PCT = 70;
+export const ABAIXO_MAX_PCT = 4;
 export const XP_MEDIDA = 5; // peso/cintura, uma vez por dia
 export const XP_INSULINA = 5; // uma vez por dia, qualquer que seja o número de aplicações
+/** Jardim: XP por vaso respondido no dia, valendo igual para "reguei" e "não". Conta até MAX_VASOS_COM_XP vasos. */
+export const XP_POR_REGA = 5;
+export const MAX_VASOS_COM_XP = 3;
 
 /**
  * Metas de "ficar abaixo de" (tempo de tela no celular, no PC e jogos) estão desligadas por enquanto.
@@ -124,6 +138,36 @@ export interface AtividadeDoDia {
   insulina?: boolean;
   /** XP das metas pessoais do dia (tela, jogos, estudo...), já calculado por xpMeta. */
   metas?: number;
+  /** Vasos do jardim respondidos no dia (reguei ou não). */
+  regas?: number;
+  /** Horas de sono da noite (para o bônus de 7 a 9 h). */
+  sonoHoras?: number;
+  /** Deitou perto do horário de costume. */
+  sonoRegular?: boolean;
+  /** O sensor fechou o dia com a meta de tempo no alvo (ver bateuAlvoDoSensor). */
+  glicoseNoAlvo?: boolean;
+}
+
+/** Sono entre 7 e 9 h. */
+export const sonoNaFaixa = (horas: number) => horas >= SONO_MIN_H && horas <= SONO_MAX_H;
+
+/** Meta do consenso internacional para sensor: 70% ou mais no alvo e até 4% abaixo, com dados suficientes. */
+export const bateuAlvoDoSensor = (t: { suficiente: boolean; noAlvoPct: number | null; abaixoPct: number | null }) =>
+  t.suficiente && (t.noAlvoPct ?? 0) >= NO_ALVO_MIN_PCT && (t.abaixoPct ?? 100) <= ABAIXO_MAX_PCT;
+
+/** Minutos do horário de deitar, contados a partir das 18h (assim 23h e 1h ficam perto). */
+export function minutosDeDeitar(iso: string): number {
+  const d = new Date(iso);
+  return (d.getHours() * 60 + d.getMinutes() - 18 * 60 + 24 * 60) % (24 * 60);
+}
+
+/** Deitou até SONO_TOLERANCIA_MIN da mediana das noites anteriores (pelo menos 3). */
+export function deitouNoHorario(esta: string, anteriores: string[]): boolean {
+  if (anteriores.length < 3) return false;
+  const xs = anteriores.map(minutosDeDeitar).sort((a, b) => a - b);
+  const meio = Math.floor(xs.length / 2);
+  const mediana = xs.length % 2 ? xs[meio] : (xs[meio - 1] + xs[meio]) / 2;
+  return Math.abs(minutosDeDeitar(esta) - mediana) <= SONO_TOLERANCIA_MIN;
 }
 
 export function bonusDeSequencia(sequencia: number): number {
@@ -135,7 +179,7 @@ export function xpDoDia(a: AtividadeDoDia) {
   const partes = {
     treinos: Math.min(a.sessoes, MAX_SESSOES) * XP_POR_SESSAO,
     checagens: Math.min(a.checagens, MAX_CHECAGENS) * XP_POR_CHECAGEM,
-    glicose: Math.min(a.glicoses, MAX_GLICOSES) * XP_POR_GLICOSE,
+    glicose: Math.min(a.glicoses, MAX_GLICOSES) * XP_POR_GLICOSE + (a.glicoseNoAlvo ? XP_GLICOSE_NO_ALVO : 0),
     agua: xpAgua(a.aguaMl, a.metaAguaMl),
     dia: a.garantido ? XP_DIA_GARANTIDO : 0,
     bonus: a.garantido ? bonusDeSequencia(a.sequencia) : 0,
@@ -143,9 +187,12 @@ export function xpDoDia(a: AtividadeDoDia) {
       Math.min(a.refeicoes ?? 0, MAX_REFEICOES) * XP_POR_REFEICAO +
       Math.min(a.caminhadas ?? 0, MAX_CAMINHADAS) * XP_POR_CAMINHADA +
       (a.sono ? XP_SONO : 0) +
+      (a.sono && a.sonoHoras !== undefined && sonoNaFaixa(a.sonoHoras) ? XP_SONO_DURACAO : 0) +
+      (a.sono && a.sonoRegular ? XP_SONO_REGULAR : 0) +
       (a.medida ? XP_MEDIDA : 0) +
       (a.insulina ? XP_INSULINA : 0),
     metas: a.metas ?? 0,
+    jardim: Math.min(a.regas ?? 0, MAX_VASOS_COM_XP) * XP_POR_REGA,
   };
   const total = Object.values(partes).reduce((s, v) => s + v, 0);
   return { total, partes };

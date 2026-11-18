@@ -1,7 +1,7 @@
 // Banco de dados local (IndexedDB, via Dexie). Tudo fica só neste aparelho.
 // Regra geral: nada é apagado de verdade. Desfazer marca o registro com "excluidoEm".
 import Dexie, { type EntityTable } from "dexie";
-import type { LeituraSensor, Tendencia } from "./sensor";
+import { tempoNoAlvoDoDia, type LeituraSensor, type Tendencia } from "./sensor";
 import { META_AGUA_PADRAO_ML, diaLogico, somarDias, turnoDoHorario, type LimitesGlicose, type MudancaDeModo, type ResultadoChecagem, type TipoMeta } from "./regras";
 
 /** De onde veio um registro. Hoje é sempre manual; relógio e sensor entram depois. */
@@ -60,7 +60,7 @@ export type ContextoRefeicao = "normal" | "antes_treino" | "depois_treino";
 export type Habito =
   | (Registro & { tipo: "refeicao"; descricao: string; carboidratosG?: number; contexto: ContextoRefeicao })
   | (Registro & { tipo: "caminhada"; minutos: number; refeicaoId?: number })
-  | (Registro & { tipo: "sono"; horas: number })
+  | (Registro & { tipo: "sono"; horas: number; /** Vindo do relógio: quando deitou e acordou (ISO). */ inicioEm?: string; fimEm?: string })
   | (Registro & { tipo: "medida"; pesoKg?: number; cinturaCm?: number })
   // Insulina: só registro do que você aplicou. O app nunca sugere dose.
   | (Registro & { tipo: "insulina"; insulina: "basal" | "rapida"; unidades?: number });
@@ -159,6 +159,23 @@ export interface Rega {
   excluidoEm?: string;
 }
 
+/** Resumo do sensor em um dia do jogo, recalculado a cada vez que você puxa. Base do bônus de tempo no alvo. */
+export interface DiaSensor {
+  dia: string;
+  coberturaPct: number;
+  suficiente: boolean;
+  noAlvoPct: number | null;
+  abaixoPct: number | null;
+  acimaPct: number | null;
+}
+
+/** Senha guardada no cofre. Fica só neste aparelho e fora do backup, de propósito. */
+export interface SenhaCofre {
+  id: "unica";
+  senha: string;
+  criadaEm: string;
+}
+
 export interface Dia {
   dia: string;
   /** Meta de água que valia naquele dia. Mudar a meta depois não altera o passado. */
@@ -227,6 +244,8 @@ class Banco extends Dexie {
   metas!: EntityTable<Meta, "id">;
   registrosMeta!: EntityTable<RegistroMeta, "id">;
   vasos!: EntityTable<Vaso, "id">;
+  diasSensor!: EntityTable<DiaSensor, "dia">;
+  cofre!: EntityTable<SenhaCofre, "id">;
   regas!: EntityTable<Rega, "id">;
   dias!: EntityTable<Dia, "dia">;
   configuracoes!: EntityTable<Configuracoes, "id">;
@@ -284,6 +303,19 @@ class Banco extends Dexie {
     this.version(6).stores({ metas: "id", registrosMeta: "id, dia, metaId" });
     // Versão 7: jardim. Só acrescenta tabelas.
     this.version(7).stores({ vasos: "id", regas: "id, dia, vasoId" });
+    // Versão 8: resumo diário do sensor (tempo no alvo), para o bônus de glicose.
+    // Leituras que já estavam guardadas ganham o resumo na hora da atualização.
+    this.version(8)
+      .stores({ diasSensor: "dia" })
+      .upgrade(async (tx) => {
+        const leituras = (await tx.table("sensor").toArray()) as LeituraSensor[];
+        for (const dia of new Set(leituras.map((l) => l.dia))) {
+          const t = tempoNoAlvoDoDia(leituras.filter((l) => l.dia === dia), dia);
+          await tx.table("diasSensor").put({ dia, coberturaPct: t.coberturaPct, suficiente: t.suficiente, noAlvoPct: t.noAlvoPct, abaixoPct: t.abaixoPct, acimaPct: t.acimaPct });
+        }
+      });
+    // Versão 9: cofre de senha (fora do backup).
+    this.version(9).stores({ cofre: "id" });
   }
 }
 
@@ -388,6 +420,19 @@ export const desfazerMarcacao = () => desfazerUltimo(db.marcacoes as never);
 export async function registrarHabito(h: NovoHabito): Promise<number> {
   await garantirDia();
   return db.habitos.add({ ...novo(), ...h } as Habito);
+}
+
+/**
+ * Guarda o sono que veio do relógio (pelo app Glicose). Fica no dia do jogo em que você acordou.
+ * Puxar de novo substitui o sono daquele dia, em vez de somar.
+ */
+export async function guardarSonoDoRelogio(dia: string, horas: number, inicioMs: number, fimMs: number): Promise<void> {
+  await garantirDia();
+  await db.transaction("rw", db.habitos, async () => {
+    const doDia = (await db.habitos.where("dia").equals(dia).toArray()).filter((h) => h.tipo === "sono" && !h.excluidoEm);
+    for (const h of doDia) await db.habitos.update(h.id, { excluidoEm: agoraIso() });
+    await db.habitos.add({ dia, criadoEm: agoraIso(), origem: "relogio", tipo: "sono", horas, inicioEm: new Date(inicioMs).toISOString(), fimEm: new Date(fimMs).toISOString() } as Habito);
+  });
 }
 
 export async function excluirHabito(id: number): Promise<void> {
@@ -512,11 +557,20 @@ export async function excluirRecompensa(id: number): Promise<void> {
 /** Guarda o que veio do app Glicose. Leituras com o mesmo horário são substituídas, nunca duplicadas. */
 export async function guardarPacoteSensor(leituras: LeituraSensor[], info: Omit<SincronizacaoSensor, "id" | "dia" | "criadoEm" | "leituras">): Promise<number> {
   await garantirDia();
-  await db.transaction("rw", db.sensor, db.sincronizacoes, async () => {
+  await db.transaction("rw", db.sensor, db.sincronizacoes, db.diasSensor, async () => {
     await db.sensor.bulkPut(leituras);
+    await atualizarDiasSensor([...new Set(leituras.map((l) => l.dia))]);
     await db.sincronizacoes.add({ dia: diaLogico(), criadoEm: agoraIso(), leituras: leituras.length, ...info } as SincronizacaoSensor);
   });
   return leituras.length;
+}
+
+/** Recalcula o tempo no alvo dos dias informados com todas as leituras guardadas deles. */
+async function atualizarDiasSensor(dias: string[]): Promise<void> {
+  for (const dia of dias) {
+    const t = tempoNoAlvoDoDia(await db.sensor.where("dia").equals(dia).toArray(), dia);
+    await db.diasSensor.put({ dia, coberturaPct: t.coberturaPct, suficiente: t.suficiente, noAlvoPct: t.noAlvoPct, abaixoPct: t.abaixoPct, acimaPct: t.acimaPct });
+  }
 }
 
 /** Leituras do sensor a partir de um horário (ms). */
@@ -574,6 +628,11 @@ export async function restaurarBackup(dados: Partial<Backup> & { app?: string })
     await db.regas.bulkPut(dados.regas ?? []);
     await db.dias.bulkPut(dados.dias ?? []);
     if (dados.configuracoes) await db.configuracoes.put({ ...CONFIG_PADRAO, ...dados.configuracoes, id: "unica" });
+  });
+  // O resumo do sensor não vai no backup: é refeito a partir das leituras.
+  await db.transaction("rw", db.sensor, db.diasSensor, async () => {
+    await db.diasSensor.clear();
+    await atualizarDiasSensor([...new Set((dados.sensor ?? []).map((l) => l.dia))]);
   });
   // Backup de antes da versão generalista: aplica a mesma preparação da primeira abertura.
   await prepararVersaoGeneralista();

@@ -15,6 +15,8 @@ export interface DiaResumido {
   sequencia: number;
   /** Metas de "fazer pelo menos" (estudo, leitura...) cumpridas no dia. */
   metasCumpridas?: number;
+  /** Vasos do jardim respondidos no dia. */
+  jardim?: number;
 }
 
 // ---------- Missões semanais ----------
@@ -32,17 +34,27 @@ export interface Missao {
 }
 
 /** As missões da semana (segunda a domingo). Fixas, para você saber o que esperar. */
+/** A partir desta semana, caminhadas e sono saem das missões (refeições saíram do app e o sono tem bônus próprio). */
+export const SEMANA_MISSOES_NOVAS = "2026-11-16";
+
 export function missoesDaSemana(dias: DiaResumido[], comGlicose = true): Missao[] {
+  const novas = !comGlicose || (dias[0]?.dia ?? "") >= SEMANA_MISSOES_NOVAS;
   const contar = (f: (d: DiaResumido) => boolean) => dias.filter(f).length;
   const lista = [
     { id: "garantidos", titulo: "Garantir 6 dias", meta: 6, progresso: contar((d) => d.garantido), risco: "Usar pausa sem precisar. A revisão semanal mostra quantas pausas houve." },
     { id: "agua", titulo: "Bater a meta de água em 5 dias", meta: 5, progresso: contar((d) => d.metaAgua), risco: "Beber tudo de uma vez à noite. Não há XP acima da meta." },
-    { id: "caminhadas", titulo: "3 caminhadas pós-refeição", meta: 3, progresso: dias.reduce((s, d) => s + d.caminhadas, 0), risco: "Registrar caminhadas curtas demais. Conta a partir de 10 minutos." },
+    // Refeições saíram do app e o sono passou a vir do relógio com bônus próprio.
+    // No lugar das duas missões: treinos na semana e o jardim. Semanas antigas continuam como eram.
+    !novas
+      ? { id: "caminhadas", titulo: "3 caminhadas pós-refeição", meta: 3, progresso: dias.reduce((s, d) => s + d.caminhadas, 0), risco: "Registrar caminhadas curtas demais. Conta a partir de 10 minutos." }
+      : { id: "treinos", titulo: "Concluir 8 treinos", meta: 8, progresso: dias.reduce((s, d) => s + Math.min(d.treinos, 2), 0), risco: "Treinos de fachada só para contar. Registre o que você fez de verdade." },
     // Com a glicose desligada, a missão de medir dá lugar a uma de metas pessoais.
     comGlicose
       ? { id: "glicose", titulo: "Medir a glicose em 6 dias", meta: 6, progresso: contar((d) => d.glicoses > 0), risco: "Medir só nos dias bons. O valor nunca tira pontos, então registre todos." }
       : { id: "metas", titulo: "Bater uma meta de estudo ou leitura em 5 dias", meta: 5, progresso: contar((d) => (d.metasCumpridas ?? 0) > 0), risco: "Inflar os minutos para fechar a meta. Só há XP até 60 min por dia." },
-    { id: "sono", titulo: "Registrar o sono em 5 dias", meta: 5, progresso: contar((d) => d.sono), risco: "Chutar as horas. Vale mais registrar o real." },
+    !novas
+      ? { id: "sono", titulo: "Registrar o sono em 5 dias", meta: 5, progresso: contar((d) => d.sono), risco: "Chutar as horas. Vale mais registrar o real." }
+      : { id: "jardim", titulo: "Responder o jardim em 6 dias", meta: 6, progresso: contar((d) => (d.jardim ?? 0) > 0), risco: "Responder no automático. Vale o mesmo XP para sim e não, então responda o real." },
   ];
   return lista.map((m) => ({ ...m, progresso: Math.min(m.progresso, m.meta), concluida: m.progresso >= m.meta }));
 }

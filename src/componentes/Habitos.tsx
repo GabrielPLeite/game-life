@@ -1,6 +1,8 @@
+import { BotaoPuxarSono, formatarHoras } from "./Sensor";
 import { useState } from "react";
 import { excluirHabito, registrarHabito, type ContextoRefeicao, type Habito } from "../db";
 import type { Resumo } from "../resumo";
+import { SONO_MAX_H, SONO_MIN_H, SONO_TOLERANCIA_MIN, XP_SONO, XP_SONO_DURACAO, XP_SONO_REGULAR, sonoNaFaixa } from "../regras";
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 const NOMES_CONTEXTO: Record<ContextoRefeicao, string> = { normal: "Normal", antes_treino: "Antes do treino", depois_treino: "Depois do treino" };
@@ -25,8 +27,9 @@ export default function Habitos({ resumo, comGlicose }: { resumo: Resumo; comGli
   const de = <T extends Habito["tipo"]>(tipo: T) => hoje.filter((h): h is Extract<Habito, { tipo: T }> => h.tipo === tipo);
   return (
     <>
-      <Refeicoes refeicoes={de("refeicao")} caminhadas={de("caminhada")} />
-      <Sono registros={de("sono")} />
+      {/* Refeições saíram a pedido (o cartão continua no código, desligado). O sono vem do relógio. */}
+      {REFEICOES_LIGADAS && <Refeicoes refeicoes={de("refeicao")} caminhadas={de("caminhada")} />}
+      <SonoDoRelogio registros={de("sono")} bonus={resumo.bonus} />
       {comGlicose && <Insulina registros={de("insulina")} />}
       <Medidas registros={de("medida")} />
     </>
@@ -120,35 +123,33 @@ function Refeicoes({ refeicoes, caminhadas }: { refeicoes: Extract<Habito, { tip
   );
 }
 
-function Sono({ registros }: { registros: Extract<Habito, { tipo: "sono" }>[] }) {
-  const [horas, setHoras] = useState(7);
+/** Cartão de refeições desligado por enquanto. Para religar, troque para true. */
+const REFEICOES_LIGADAS = false;
+
+/** Sono vindo do relógio: sem registro à mão, só o botão que puxa pelo app Glicose. Bônus só somam. */
+function SonoDoRelogio({ registros, bonus }: { registros: Extract<Habito, { tipo: "sono" }>[]; bonus: Resumo["bonus"] }) {
   const registrado = registros.at(-1);
+  const naFaixa = registrado ? sonoNaFaixa(registrado.horas) : false;
+  const xp = registrado ? XP_SONO + (naFaixa ? XP_SONO_DURACAO : 0) + (bonus.sonoRegular ? XP_SONO_REGULAR : 0) : 0;
   return (
     <section className="cartao">
       <div className="cartao-topo">
         <h2>Sono da última noite</h2>
-        <span className="xp-dia">5 XP</span>
+        <span className="xp-dia">{registrado ? `+${xp} XP` : `até ${XP_SONO + XP_SONO_DURACAO + XP_SONO_REGULAR} XP`}</span>
       </div>
-      {registrado ? (
-        <p className="situacao">
-          {String(registrado.horas).replace(".", ",")} h registradas. <Excluir id={registrado.id} rotulo="sono" />
-        </p>
-      ) : (
-        <div className="ajuste">
-          <div className="passos">
-            <button aria-label="Menos meia hora" disabled={horas <= 0} onClick={() => setHoras(horas - 0.5)}>
-              −
-            </button>
-            <strong>{String(horas).replace(".", ",")} h</strong>
-            <button aria-label="Mais meia hora" disabled={horas >= 14} onClick={() => setHoras(horas + 0.5)}>
-              +
-            </button>
-          </div>
-          <button className="principal habito" onClick={() => void registrarHabito({ tipo: "sono", horas })}>
-            Registrar
-          </button>
-        </div>
-      )}
+      <p className="situacao">{registrado ? `${formatarHoras(registrado.horas)} dormindo${registrado.origem === "relogio" ? ", pelo relógio" : ""}.` : "Ainda sem o sono de hoje."}</p>
+      <ul className="bonus-lista">
+        <li className={registrado ? "ok" : ""}>Puxar o sono do dia: +{XP_SONO}</li>
+        <li className={naFaixa ? "ok" : ""}>
+          Dormir entre {SONO_MIN_H} e {SONO_MAX_H} h: +{XP_SONO_DURACAO}
+        </li>
+        <li className={bonus.sonoRegular ? "ok" : ""}>
+          Deitar até {SONO_TOLERANCIA_MIN} min do seu horário de costume: +{XP_SONO_REGULAR}
+          {bonus.noitesParaRegularidade < 3 && <small className="suave"> (precisa de 3 noites antes; tem {bonus.noitesParaRegularidade})</small>}
+        </li>
+      </ul>
+      <BotaoPuxarSono />
+      <p className="nota">Noite curta ou horário diferente não tira pontos, só deixa de dar o bônus. Vem do Galaxy Watch pelo Samsung Health e Health Connect, através do app Glicose. Puxar de novo atualiza o mesmo dia.</p>
     </section>
   );
 }

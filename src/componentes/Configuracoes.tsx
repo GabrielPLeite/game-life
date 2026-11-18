@@ -2,6 +2,7 @@ import { useState } from "react";
 import { diaLogico, ML_POR_COPO } from "../regras";
 import { definirGlicose, exportarTudo, glicoseLigada, restaurarBackup, salvarConfiguracoes, type Configuracoes as Config, type Meta } from "../db";
 import { GerenciarMetas } from "./Metas";
+import Cofre from "./Cofre";
 import { litros } from "./Agua";
 
 /** Baixa um arquivo JSON com todos os dados do app. */
@@ -139,11 +140,16 @@ export default function Configuracoes({ configuracoes: c, metaAguaHoje, metas }:
             />
           </label>
           <p className="nota">
-            Regras de XP: treino ou pausa legítima 40 (até 2 por dia) · meta de limite (tela, jogos) 10 por registrar o dia + 15 se ficou dentro · meta de mínimo (estudo) 5 a cada 15 min (até 60 min)
-            {comGlicose && " · checagem antes do treino 10 · glicose registrada 5 (até 6)"} · água 2 a cada 250 ml + 10 na meta · dia garantido 20 · bônus de
-            sequência +2 por dia (até +20) · refeição 5 (até 4) · caminhada pós-refeição 10 (até 3) · sono e peso{comGlicose && " e insulina"} 5 cada por dia · missão da semana 50 · chefe 150. O dia vira às 3h. Seus dados
+            Regras de XP: treino ou pausa legítima 40 (até 2 por dia) · meta de estudo 5 a cada 15 min (até 60 min) · jardim 5 por vaso respondido (até 3)
+            {comGlicose && " · checagem antes do treino 10 · glicose registrada 5 (até 6) · sensor com 70% no alvo e até 4% abaixo +15"} · água 2 a cada 250 ml + 10 na meta · dia garantido 20 · bônus de
+            sequência +2 por dia (até +20) · sono 5, +10 entre 7 e 9 h, +5 no horário de costume · peso{comGlicose && " e insulina"} 5 por dia · missão da semana 50 · chefe 150. Nada tira pontos. O dia vira às 3h. Seus dados
             ficam só neste aparelho.
           </p>
+          <details className="avancado">
+            <summary>Avançado</summary>
+            <h3>Cofre</h3>
+            <Cofre />
+          </details>
         </>
       )}
     </section>

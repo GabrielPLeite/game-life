@@ -1,9 +1,9 @@
 // Tudo o que a tela mostra sobre o sensor (dados vindos do app Glicose).
 import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { guardarPacoteSensor, leiturasDoSensorDesde } from "../db";
+import { guardarPacoteSensor, guardarSonoDoRelogio, leiturasDoSensorDesde } from "../db";
 import type { Resumo } from "../resumo";
-import { diaLogico } from "../regras";
+import { ABAIXO_MAX_PCT, NO_ALVO_MIN_PCT, XP_GLICOSE_NO_ALVO, diaLogico } from "../regras";
 import {
   ALVO_SENSOR_MAX,
   ALVO_SENSOR_MIN,
@@ -13,7 +13,9 @@ import {
   episodiosAbaixo,
   inicioDoDiaDoJogo,
   lerPacote,
+  lerSono,
   linkPuxarDoSensor,
+  linkPuxarSono,
   paraGuardar,
   tempoNoAlvo,
   tempoNoAlvoDoDia,
@@ -22,6 +24,16 @@ import {
 } from "../sensor";
 
 const PREFIXO = "#sensor=";
+const PREFIXO_SONO = "#sono=";
+export const formatarHoras = (h: number) => `${String(h).replace(".", ",")} h`;
+const AVISOS_SONO: Record<string, string> = {
+  "sem-app": "Não encontrei o app Glicose neste celular. Ele é quem traz o sono do relógio.",
+  "sem-hc": "O Health Connect não está disponível neste celular.",
+  "sem-permissao": "Sem permissão para ler o sono. Toque de novo e permita no Health Connect.",
+  vazio: "Nenhum sono nas últimas 24 h. Confira se o Samsung Health está enviando o sono ao Health Connect.",
+  erro: "O app Glicose não conseguiu ler o sono. Tente de novo.",
+  invalido: "O sono veio num formato que não entendi. Atualize o app Glicose.",
+};
 const hora = (ms: number) => new Date(ms).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 export const minutosAtras = (ms: number, agora = Date.now()) => Math.max(0, Math.round((agora - ms) / 60000));
 
@@ -37,6 +49,7 @@ export function useImportarSensor(): [string | null, () => void] {
   const [aviso, setAviso] = useState<string | null>(null);
   useEffect(() => {
     const importar = async () => {
+      if (location.hash.startsWith(PREFIXO_SONO)) return importarSono();
       if (!location.hash.startsWith(PREFIXO)) return;
       const texto = decodeURIComponent(location.hash.slice(PREFIXO.length));
       // Limpa o endereço para não importar de novo ao recarregar.
@@ -69,6 +82,17 @@ export function useImportarSensor(): [string | null, () => void] {
           (pacote.servicoLigado ? "" : " O monitoramento do app Glicose está desligado."),
       );
     };
+    const importarSono = async () => {
+      const texto = decodeURIComponent(location.hash.slice(PREFIXO_SONO.length));
+      history.replaceState(null, "", location.pathname + location.search);
+      const r = lerSono(texto);
+      if (!r.ok) {
+        setAviso(AVISOS_SONO[r.motivo]);
+        return;
+      }
+      await guardarSonoDoRelogio(r.sono.dia, r.sono.horas, r.sono.inicio, r.sono.fim);
+      setAviso(`Sono recebido: ${formatarHoras(r.sono.horas)} dormindo, das ${hora(r.sono.inicio)} às ${hora(r.sono.fim)}.`);
+    };
     void importar();
     const aoMudar = () => void importar();
     window.addEventListener("hashchange", aoMudar);
@@ -97,6 +121,15 @@ export function useLeiturasSensor(desdeMs: number): LeituraSensor[] | undefined 
   // Arredonda para o minuto, para a consulta não refazer a cada render.
   const desde = Math.floor(desdeMs / 60000) * 60000;
   return useLiveQuery(() => leiturasDoSensorDesde(desde), [desde]);
+}
+
+/** Botão que abre o app Glicose para trazer o sono do relógio (Health Connect). */
+export function BotaoPuxarSono() {
+  return (
+    <a className="botao-link" href={linkPuxarSono(enderecoDoApp())}>
+      ⌚ Puxar sono do relógio
+    </a>
+  );
 }
 
 /** Botão que abre o app Glicose para puxar as leituras. É um link porque o Android trata "intent://". */
@@ -140,7 +173,13 @@ export function BlocoSensor({ resumo }: { resumo: Resumo }) {
           {tendencia > 0 && ` Tendência: ${NOMES_TENDENCIA[tendencia]}.`}
         </p>
       )}
+      <ul className="bonus-lista">
+        <li className={resumo.bonus.glicoseNoAlvo ? "ok" : ""}>
+          Bônus do dia: {NO_ALVO_MIN_PCT}% ou mais no alvo e até {ABAIXO_MAX_PCT}% abaixo de {ALVO_SENSOR_MIN}: +{XP_GLICOSE_NO_ALVO} XP
+        </li>
+      </ul>
       <BotaoPuxar texto={resumo.hoje.sensorHoje ? "Puxar de novo" : "Puxar do sensor"} />
+      <p className="nota">Hipo ou hiper não tiram pontos. O bônus usa o que você já puxou; puxe de novo à noite para contar o dia todo.</p>
     </div>
   );
 }
