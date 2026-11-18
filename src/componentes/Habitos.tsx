@@ -1,3 +1,4 @@
+import { BotaoPuxarSono, formatarHoras } from "./Sensor";
 import { useState } from "react";
 import { excluirHabito, registrarHabito, type ContextoRefeicao, type Habito } from "../db";
 import type { Resumo } from "../resumo";
@@ -27,7 +28,7 @@ export default function Habitos({ resumo, comGlicose }: { resumo: Resumo; comGli
     <>
       {/* Refeições e sono só aparecem com a parte de glicose ligada. O sono deve voltar vindo do relógio. */}
       {comGlicose && <Refeicoes refeicoes={de("refeicao")} caminhadas={de("caminhada")} />}
-      {comGlicose && <Sono registros={de("sono")} />}
+      {comGlicose ? <Sono registros={de("sono")} /> : <SonoDoRelogio registros={de("sono")} />}
       {comGlicose && <Insulina registros={de("insulina")} />}
       <Medidas registros={de("medida")} />
     </>
@@ -150,6 +151,22 @@ function Sono({ registros }: { registros: Extract<Habito, { tipo: "sono" }>[] })
           </button>
         </div>
       )}
+    </section>
+  );
+}
+
+/** Sono vindo do relógio: sem registro à mão, só o botão que puxa pelo app Glicose. */
+function SonoDoRelogio({ registros }: { registros: Extract<Habito, { tipo: "sono" }>[] }) {
+  const registrado = registros.at(-1);
+  return (
+    <section className="cartao">
+      <div className="cartao-topo">
+        <h2>Sono da última noite</h2>
+        <span className="xp-dia">5 XP</span>
+      </div>
+      <p className="situacao">{registrado ? `${formatarHoras(registrado.horas)} dormindo${registrado.origem === "relogio" ? ", pelo relógio" : ""}.` : "Ainda sem o sono de hoje."}</p>
+      <BotaoPuxarSono />
+      <p className="nota">Vem do Galaxy Watch pelo Samsung Health e Health Connect, através do app Glicose. Puxar de novo atualiza o mesmo dia.</p>
     </section>
   );
 }

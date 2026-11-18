@@ -104,3 +104,22 @@ describe("episodiosAbaixo", () => {
     expect(episodiosAbaixo(xs)).toHaveLength(2);
   });
 });
+
+describe("sono do relógio", () => {
+  const agora = Date.UTC(2026, 10, 18, 12, 0); // 18/11 9h em São Paulo
+  const s = (x: number) => Math.floor(x / 1000);
+  it("lê uma noite e põe no dia em que acordou", async () => {
+    const { lerSono } = await import("./sensor");
+    const inicio = agora - 10 * 3600_000;
+    const fim = agora - 2 * 3600_000;
+    const r = lerSono(`v1.${s(inicio)}.${s(fim)}.435`, agora);
+    expect(r.ok && r.sono).toMatchObject({ minutos: 435, horas: 7.3 });
+  });
+  it("recusa formato errado, sono antigo e minutos maiores que a duração", async () => {
+    const { lerSono } = await import("./sensor");
+    expect(lerSono("v1.1.2", agora)).toEqual({ ok: false, motivo: "invalido" });
+    expect(lerSono(`v1.${s(agora - 50 * 3600_000)}.${s(agora - 40 * 3600_000)}.300`, agora).ok).toBe(false);
+    expect(lerSono(`v1.${s(agora - 3600_000)}.${s(agora)}.200`, agora).ok).toBe(false);
+    expect(lerSono("sem-permissao", agora)).toEqual({ ok: false, motivo: "sem-permissao" });
+  });
+});

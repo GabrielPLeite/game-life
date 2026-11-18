@@ -109,6 +109,49 @@ export function linkPuxarDoSensor(voltarPara: string): string {
   return `intent://exportar#Intent;scheme=glicoserelogio;package=br.gleite.glicose;S.browser_fallback_url=${fallback};end`;
 }
 
+/**
+ * Link do botão "Puxar sono do relógio". Abre o app Glicose pedindo só o sono (lido do Health Connect).
+ * Ele devolve abrindo o Game Life em `voltarPara#sono=...`.
+ */
+export function linkPuxarSono(voltarPara: string): string {
+  const fallback = encodeURIComponent(`${voltarPara}#sono=sem-app`);
+  return `intent://exportar?o=sono#Intent;scheme=glicoserelogio;package=br.gleite.glicose;S.browser_fallback_url=${fallback};end`;
+}
+
+export interface SonoRecebido {
+  inicio: number;
+  fim: number;
+  /** Minutos dormindo, sem os trechos acordado. */
+  minutos: number;
+  /** Dia do jogo em que você acordou. */
+  dia: string;
+  /** Horas com uma casa decimal. */
+  horas: number;
+}
+
+export type ResultadoSono = { ok: true; sono: SonoRecebido } | { ok: false; motivo: "sem-app" | "sem-hc" | "sem-permissao" | "vazio" | "erro" | "invalido" };
+
+/**
+ * Lê o texto depois de "#sono=". Formato (igual ao SonoDoRelogio.kt do app Glicose):
+ *   v1.INICIO.FIM.MINUTOS   (INICIO e FIM em segundos desde 1970)
+ * Recusa sono que terminou no futuro ou há mais de 36 h, ou com mais minutos que a duração.
+ */
+export function lerSono(texto: string, agora = Date.now()): ResultadoSono {
+  if (["sem-app", "sem-hc", "sem-permissao", "vazio", "erro"].includes(texto)) return { ok: false, motivo: texto as "sem-app" };
+  const partes = texto.split(".");
+  if (partes.length !== 4 || partes[0] !== "v1") return { ok: false, motivo: "invalido" };
+  const [inicio, fim, minutos] = partes.slice(1).map(Number);
+  const valido =
+    [inicio, fim, minutos].every(Number.isInteger) &&
+    fim > inicio &&
+    fim * 1000 <= agora + 5 * 60 * 1000 &&
+    fim * 1000 >= agora - 36 * 60 * 60 * 1000 &&
+    minutos >= 0 &&
+    minutos <= (fim - inicio) / 60 + 1;
+  if (!valido) return { ok: false, motivo: "invalido" };
+  return { ok: true, sono: { inicio: inicio * 1000, fim: fim * 1000, minutos, dia: diaLogico(new Date(fim * 1000)), horas: Math.round((minutos / 60) * 10) / 10 } };
+}
+
 /** A leitura mais nova, se tiver no máximo `maxMin` minutos. */
 export function leituraRecente(leituras: LeituraSensor[], agora = Date.now(), maxMin = LEITURA_RECENTE_MIN): LeituraSensor | undefined {
   const ultima = leituras.reduce<LeituraSensor | undefined>((m, x) => (!m || x.ts > m.ts ? x : m), undefined);

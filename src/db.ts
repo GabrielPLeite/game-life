@@ -390,6 +390,19 @@ export async function registrarHabito(h: NovoHabito): Promise<number> {
   return db.habitos.add({ ...novo(), ...h } as Habito);
 }
 
+/**
+ * Guarda o sono que veio do relógio (pelo app Glicose). Fica no dia do jogo em que você acordou.
+ * Puxar de novo substitui o sono daquele dia, em vez de somar.
+ */
+export async function guardarSonoDoRelogio(dia: string, horas: number): Promise<void> {
+  await garantirDia();
+  await db.transaction("rw", db.habitos, async () => {
+    const doDia = (await db.habitos.where("dia").equals(dia).toArray()).filter((h) => h.tipo === "sono" && !h.excluidoEm);
+    for (const h of doDia) await db.habitos.update(h.id, { excluidoEm: agoraIso() });
+    await db.habitos.add({ dia, criadoEm: agoraIso(), origem: "relogio", tipo: "sono", horas } as Habito);
+  });
+}
+
 export async function excluirHabito(id: number): Promise<void> {
   await db.habitos.update(id, { excluidoEm: agoraIso() });
 }
