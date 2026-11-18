@@ -91,7 +91,7 @@ export default function App() {
 
   // useLiveQuery relê o banco sozinho sempre que algo muda.
   const dados = useLiveQuery(async () => {
-    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas] = await Promise.all([
+    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas, diasSensor] = await Promise.all([
       lerConfiguracoes(),
       db.dias.toArray(),
       db.agua.toArray(),
@@ -106,8 +106,9 @@ export default function App() {
       db.registrosMeta.toArray(),
       db.vasos.toArray(),
       db.regas.toArray(),
+      db.diasSensor.toArray(),
     ]);
-    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas };
+    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas, diasSensor };
   });
 
   const resumo = dados ? montarResumo(dados, hoje) : undefined;

@@ -521,3 +521,8 @@ header.heroi > * { min-width: 0; }
 .jardim .rega-ontem { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
 .jardim .perda { color: #7a1f1f; }
 .jardim .rega-ontem .link { padding: 0; min-height: 0; }
+
+/* ---------- Lista de bônus (sono, sensor) ---------- */
+.bonus-lista { list-style: none; padding: 0; margin: 0.4rem 0 0.8rem; display: grid; gap: 0.25rem; }
+.bonus-lista li::before { content: "○ "; color: #2b1d0e66; }
+.bonus-lista li.ok::before { content: "✓ "; color: #2f5a1e; font-weight: 700; }

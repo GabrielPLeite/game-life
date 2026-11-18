@@ -1,12 +1,14 @@
 // Junta todos os registros e aplica as regras do jogo.
 // Função pura: recebe os dados do banco e devolve tudo o que a tela precisa mostrar.
-import type { CompraLoja, Rega, Configuracoes, Dia, Habito, Marcacao, Meta, Recompensa, RegistroMeta, RegistroAgua, RegistroGlicose, RegistroTreino, SincronizacaoSensor, TipoTreino } from "./db";
+import type { CompraLoja, DiaSensor, Rega, Configuracoes, Dia, Habito, Marcacao, Meta, Recompensa, RegistroMeta, RegistroAgua, RegistroGlicose, RegistroTreino, SincronizacaoSensor, TipoTreino } from "./db";
 import { agruparPorSemana, chefeDaSemana, conquistas, missoesDaSemana, planoEsteira, xpDaSemana, type DiaResumido } from "./jogo";
 import {
   calcularSequencia,
   glicoseLigadaEm,
   inicioDaSemana,
   METAS_DE_LIMITE_LIGADAS,
+  bateuAlvoDoSensor,
+  deitouNoHorario,
   metaCumprida,
   minutosDoDia,
   somarDias,
@@ -35,6 +37,8 @@ export interface Dados {
   registrosMeta?: RegistroMeta[];
   /** Respostas do jardim. Só importa quantos vasos foram respondidos em cada dia. */
   regas?: Rega[];
+  /** Tempo no alvo de cada dia com leituras do sensor. */
+  diasSensor?: DiaSensor[];
 }
 
 /** Agrupa registros ativos (não excluídos) por dia. */
@@ -103,6 +107,22 @@ export function montarResumo(d: Dados, hoje: string) {
   const pocoesEm = (dia: string) => compras.filter((c) => c.itemId === POCAO_DE_GELO && c.dia === dia).length;
   const sequencia = calcularSequencia(primeiroDia < hoje ? primeiroDia : hoje, hoje, situacaoDe, pocoesEm);
 
+  // ---------- Bônus de sono e de glicose do sensor (só somam, nunca tiram) ----------
+  const sensorDoDia = new Map((d.diasSensor ?? []).map((x) => [x.dia, x]));
+  const sonoDoDia = (dia: string) => habitosDe(dia, "sono").at(-1);
+  /** Horários de deitar das 7 noites anteriores com dado do relógio. */
+  const deitaresAntes = (dia: string) =>
+    Array.from({ length: 7 }, (_, i) => sonoDoDia(somarDias(dia, -(i + 1)))?.inicioEm).filter((x): x is string => !!x);
+  const sonoRegularEm = (dia: string) => {
+    const inicio = sonoDoDia(dia)?.inicioEm;
+    return !!inicio && deitouNoHorario(inicio, deitaresAntes(dia));
+  };
+  /** Bônus do sensor só vale nos dias com a parte de glicose ligada. */
+  const glicoseNoAlvoEm = (dia: string) => {
+    const t = sensorDoDia.get(dia);
+    return !!t && glicoseLigadaEm(dia, d.configuracoes.glicoseHistorico) && bateuAlvoDoSensor(t);
+  };
+
   const atividadeDe = (dia: string, sequenciaDoDia: number) => ({
     sessoes: concluidos(dia).length + (pausaDe(dia) ? 1 : 0),
     checagens: (treinos.get(dia) ?? []).filter((t) => t.glicoseId !== undefined).length,
@@ -118,6 +138,9 @@ export function montarResumo(d: Dados, hoje: string) {
     insulina: habitosDe(dia, "insulina").length > 0,
     metas: metasDoDia(dia).reduce((x, m) => x + m.xp, 0),
     regas: vasosRespondidos(dia),
+    sonoHoras: sonoDoDia(dia)?.horas,
+    sonoRegular: sonoRegularEm(dia),
+    glicoseNoAlvo: glicoseNoAlvoEm(dia),
   });
 
   // O XP total é sempre recalculado a partir dos registros, nunca guardado como saldo.
@@ -284,6 +307,13 @@ export function montarResumo(d: Dados, hoje: string) {
       recompensas,
     },
     habitosHoje: habitos.get(hoje) ?? [],
+    /** Situação dos bônus de hoje, para a tela explicar de onde veio cada ponto. */
+    bonus: {
+      sonoRegular: sonoRegularEm(hoje),
+      noitesParaRegularidade: deitaresAntes(hoje).length,
+      sensorHoje: sensorDoDia.get(hoje),
+      glicoseNoAlvo: glicoseNoAlvoEm(hoje),
+    },
     /** Metas ativas, com a situação de hoje e de ontem (ontem é onde as metas de limite fecham). */
     metas: metasAtivas.map((meta) => ({ meta, hoje: metaNaTela(meta, hoje), ontem: metaNaTela(meta, somarDias(hoje, -1)) })),
     ontem: somarDias(hoje, -1),

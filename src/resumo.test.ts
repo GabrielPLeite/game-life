@@ -80,7 +80,8 @@ describe("montarResumo com hábitos e semana", () => {
       { ...base, id: 6, dia: "2026-11-11", tipo: "insulina", insulina: "rapida", unidades: 4 },
     ];
     const r = montarResumo(d, "2026-11-11");
-    expect(r.xpHoje.partes.habitos).toBe(5 + 10 + 5 + 5);
+    // refeição 5 + caminhada 10 + sono 5 (+10 por ficar entre 7 e 9 h) + insulina 5
+    expect(r.xpHoje.partes.habitos).toBe(5 + 10 + 5 + 10 + 5);
     expect(r.jogo.missoes.find((m) => m.id === "caminhadas")?.progresso).toBe(1);
   });
 
@@ -140,5 +141,26 @@ describe("montarResumo com hábitos e semana", () => {
     expect(montarResumo(d, "2026-11-18").xpHoje.partes.jardim).toBe(10);
     d.regas.push(rega("d", "v3", true), rega("e", "v4", true));
     expect(montarResumo(d, "2026-11-18").xpHoje.partes.jardim).toBe(15);
+  });
+
+  it("sono: bônus de 7 a 9 h e de horário de costume, nunca desconto", () => {
+    const d = vazio();
+    const noite = (id: number, dia: string, horas: number, deitou: string) => ({ ...base, id, dia, tipo: "sono" as const, horas, inicioEm: new Date(`${dia}T${deitou}:00`).toISOString() });
+    d.habitos = [noite(1, "2026-11-15", 7, "23:00"), noite(2, "2026-11-16", 8, "23:30"), noite(3, "2026-11-17", 7.5, "00:10"), noite(4, "2026-11-18", 7.2, "23:40")];
+    expect(montarResumo(d, "2026-11-18").xpHoje.partes.habitos).toBe(5 + 10 + 5);
+    d.habitos[3] = noite(4, "2026-11-18", 5, "03:00");
+    expect(montarResumo(d, "2026-11-18").xpHoje.partes.habitos).toBe(5);
+  });
+
+  it("glicose do sensor: bônus só com 70% no alvo, até 4% abaixo, dados suficientes e glicose ligada", () => {
+    const d = vazio();
+    const dia = (x: Partial<import("./db").DiaSensor>) => ({ dia: "2026-11-18", coberturaPct: 90, suficiente: true, noAlvoPct: 75, abaixoPct: 3, acimaPct: 22, ...x });
+    d.diasSensor = [dia({})];
+    expect(montarResumo(d, "2026-11-18").xpHoje.partes.glicose).toBe(15);
+    d.diasSensor = [dia({ abaixoPct: 6 })];
+    expect(montarResumo(d, "2026-11-18").xpHoje.partes.glicose).toBe(0);
+    d.diasSensor = [dia({})];
+    d.configuracoes = { ...CONFIG_PADRAO, glicoseHistorico: [{ desde: "2026-11-16", ligada: false }] };
+    expect(montarResumo(d, "2026-11-18").xpHoje.partes.glicose).toBe(0);
   });
 });

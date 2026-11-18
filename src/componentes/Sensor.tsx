@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { guardarPacoteSensor, guardarSonoDoRelogio, leiturasDoSensorDesde } from "../db";
 import type { Resumo } from "../resumo";
-import { diaLogico } from "../regras";
+import { ABAIXO_MAX_PCT, NO_ALVO_MIN_PCT, XP_GLICOSE_NO_ALVO, diaLogico } from "../regras";
 import {
   ALVO_SENSOR_MAX,
   ALVO_SENSOR_MIN,
@@ -90,7 +90,7 @@ export function useImportarSensor(): [string | null, () => void] {
         setAviso(AVISOS_SONO[r.motivo]);
         return;
       }
-      await guardarSonoDoRelogio(r.sono.dia, r.sono.horas);
+      await guardarSonoDoRelogio(r.sono.dia, r.sono.horas, r.sono.inicio, r.sono.fim);
       setAviso(`Sono recebido: ${formatarHoras(r.sono.horas)} dormindo, das ${hora(r.sono.inicio)} às ${hora(r.sono.fim)}.`);
     };
     void importar();
@@ -173,7 +173,13 @@ export function BlocoSensor({ resumo }: { resumo: Resumo }) {
           {tendencia > 0 && ` Tendência: ${NOMES_TENDENCIA[tendencia]}.`}
         </p>
       )}
+      <ul className="bonus-lista">
+        <li className={resumo.bonus.glicoseNoAlvo ? "ok" : ""}>
+          Bônus do dia: {NO_ALVO_MIN_PCT}% ou mais no alvo e até {ABAIXO_MAX_PCT}% abaixo de {ALVO_SENSOR_MIN}: +{XP_GLICOSE_NO_ALVO} XP
+        </li>
+      </ul>
       <BotaoPuxar texto={resumo.hoje.sensorHoje ? "Puxar de novo" : "Puxar do sensor"} />
+      <p className="nota">Hipo ou hiper não tiram pontos. O bônus usa o que você já puxou; puxe de novo à noite para contar o dia todo.</p>
     </div>
   );
 }
