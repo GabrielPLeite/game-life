@@ -526,3 +526,9 @@ header.heroi > * { min-width: 0; }
 .bonus-lista { list-style: none; padding: 0; margin: 0.4rem 0 0.8rem; display: grid; gap: 0.25rem; }
 .bonus-lista li::before { content: "○ "; color: #2b1d0e66; }
 .bonus-lista li.ok::before { content: "✓ "; color: #2f5a1e; font-weight: 700; }
+
+/* ---------- Avançado / Cofre ---------- */
+.avancado { margin-top: 1rem; }
+.avancado summary { cursor: pointer; color: #2b1d0e99; font-size: 0.9rem; }
+.cofre .senha { align-items: center; gap: 0.75rem; }
+.cofre .senha code { font-size: 1.15rem; letter-spacing: 0.06em; background: #d9c79666; padding: 0.3rem 0.5rem; border-radius: 4px; word-break: break-all; }

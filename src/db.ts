@@ -169,6 +169,13 @@ export interface DiaSensor {
   acimaPct: number | null;
 }
 
+/** Senha guardada no cofre. Fica só neste aparelho e fora do backup, de propósito. */
+export interface SenhaCofre {
+  id: "unica";
+  senha: string;
+  criadaEm: string;
+}
+
 export interface Dia {
   dia: string;
   /** Meta de água que valia naquele dia. Mudar a meta depois não altera o passado. */
@@ -238,6 +245,7 @@ class Banco extends Dexie {
   registrosMeta!: EntityTable<RegistroMeta, "id">;
   vasos!: EntityTable<Vaso, "id">;
   diasSensor!: EntityTable<DiaSensor, "dia">;
+  cofre!: EntityTable<SenhaCofre, "id">;
   regas!: EntityTable<Rega, "id">;
   dias!: EntityTable<Dia, "dia">;
   configuracoes!: EntityTable<Configuracoes, "id">;
@@ -306,6 +314,8 @@ class Banco extends Dexie {
           await tx.table("diasSensor").put({ dia, coberturaPct: t.coberturaPct, suficiente: t.suficiente, noAlvoPct: t.noAlvoPct, abaixoPct: t.abaixoPct, acimaPct: t.acimaPct });
         }
       });
+    // Versão 9: cofre de senha (fora do backup).
+    this.version(9).stores({ cofre: "id" });
   }
 }
 
