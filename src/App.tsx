@@ -16,7 +16,7 @@ import Analises from "./componentes/Analises";
 import Configuracoes from "./componentes/Configuracoes";
 import Batalha, { AvisoDeGolpe, useGolpe } from "./componentes/Batalha";
 import CriarHeroi from "./componentes/CriarHeroi";
-import Brasa from "./componentes/Brasa";
+import Covil from "./componentes/Brasa";
 import { tituloDoNivel } from "./rpg";
 import { AvisoSensor, useImportarSensor } from "./componentes/Sensor";
 
@@ -143,10 +143,42 @@ export default function App() {
       {comHeroi && <AvisoDeGolpe golpe={golpe} resumo={resumo} />}
       <AvisoSensor texto={avisoSensor} onFechar={fecharAvisoSensor} />
       <main>
-        {aba !== "analises" && <Cabecalho resumo={resumo} semHeroi={!comHeroi} />}
-        {aba === "hoje" && (
+        {aba !== "analises" && (comHeroi || aba !== "hoje") && <Cabecalho resumo={resumo} semHeroi={!comHeroi} />}
+        {aba === "hoje" && !comHeroi && (
+          <Covil
+            resumo={resumo}
+            refeicoes={dados.brasa}
+            hoje={hoje}
+            atalhos={[
+              {
+                id: "treino",
+                icone: "🏃",
+                nome: "Treino",
+                selo: resumo.hoje.garantido ? "✓" : undefined,
+                alerta: !resumo.hoje.garantido,
+                painel: (
+                  <>
+                    <EmJogo resumo={resumo} comGlicose={comGlicose} />
+                    <Treino resumo={resumo} configuracoes={dados.configuracoes} />
+                  </>
+                ),
+              },
+              {
+                id: "agua",
+                icone: "💧",
+                nome: "Água",
+                selo: resumo.hoje.aguaMl >= resumo.hoje.metaAguaMl ? "✓" : undefined,
+                painel: <Agua resumo={resumo} />,
+              },
+              { id: "metas", icone: "📚", nome: "Metas", painel: <Metas resumo={resumo} /> },
+              { id: "jardim", icone: "🌿", nome: "Jardim", painel: <Jardim vasos={dados.vasos} regas={dados.regas} hoje={hoje} /> },
+              ...(comGlicose ? [{ id: "glicose", icone: "🩸", nome: "Glicose", painel: <Glicose resumo={resumo} configuracoes={dados.configuracoes} /> }] : []),
+            ]}
+          />
+        )}
+        {aba === "hoje" && comHeroi && (
           <>
-            {comHeroi ? <Batalha resumo={resumo} golpe={golpe} compacta /> : <Brasa resumo={resumo} refeicoes={dados.brasa} hoje={hoje} />}
+            <Batalha resumo={resumo} golpe={golpe} compacta />
             <EmJogo resumo={resumo} comGlicose={comGlicose} />
             <Treino resumo={resumo} configuracoes={dados.configuracoes} />
             <Metas resumo={resumo} />
