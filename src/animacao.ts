@@ -16,6 +16,9 @@ export interface Animacao {
   loop: boolean;
   largura: number;
   altura: number;
+  /** Quadros ficam em grade, da esquerda para a direita e de cima para baixo. */
+  colunas?: number;
+  linhas?: number;
 }
 /** { e1: { idle: {...}, piscar: {...} }, e2: {...} } */
 export type Catalogo = Record<string, Record<string, Animacao>>;

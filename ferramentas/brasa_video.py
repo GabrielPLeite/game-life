@@ -12,7 +12,7 @@ O que faz:
    Se o fundo não for verde, usa o rembg (IA de recorte).
 3. Recorta todos os quadros pela MESMA caixa (a união de onde a Brasa aparece), para ela não
    pular de lugar entre um quadro e outro. A câmera do vídeo precisa estar parada.
-4. Grava uma tira horizontal em WebP em public/brasa/anim/e<estagio>/<nome>.webp
+4. Grava uma grade de quadros em WebP em public/brasa/anim/e<estagio>/<nome>.webp
    e registra a animação em public/brasa/anim/animacoes.json.
 """
 import argparse
@@ -52,8 +52,13 @@ def tirar_verde(img: np.ndarray) -> np.ndarray:
     r, g, b = f[..., 0], f[..., 1], f[..., 2]
     verdice = g - np.maximum(r, b)
     alfa = 1 - np.clip((verdice - 25) / 60, 0, 1)
-    g2 = np.where(verdice > 0, np.maximum(r, b) + np.clip(verdice, 0, 255) * alfa * 0.3, g)
-    rgb = np.stack([r, np.minimum(g, g2), b], axis=-1)
+    # Borda meio transparente: tira a parte do verde que se misturou (cor = fundo*(1-alfa) + Brasa*alfa).
+    borda = np.concatenate([img[0], img[-1], img[:, 0], img[:, -1]]).astype(float)
+    fundo = np.median(borda, axis=0)
+    a = np.maximum(alfa, 0.05)[..., None]
+    rgb = (f - (1 - a) * fundo) / a
+    # Reflexo verde que sobrar: nenhum pixel fica mais verde que o seu vermelho/azul (chama amarela continua amarela).
+    rgb[..., 1] = np.minimum(rgb[..., 1], np.maximum(rgb[..., 0], rgb[..., 2]))
     return np.dstack([rgb, alfa * 255]).clip(0, 255).astype(np.uint8)
 
 
@@ -100,16 +105,19 @@ def main():
     escala = a.altura / (b - t)
     larg, alt = round((r - l) * escala), a.altura
 
-    tira = Image.new("RGBA", (larg * len(quadros), alt))
+    # Grade de quadros (o WebP aceita no máximo 16383 px de lado).
+    colunas = min(len(quadros), 16000 // larg)
+    linhas = -(-len(quadros) // colunas)
+    tira = Image.new("RGBA", (larg * colunas, alt * linhas))
     for i, q in enumerate(quadros):
         img = Image.fromarray(q[t:b, l:r], "RGBA").resize((larg, alt), Image.LANCZOS)
         if a.espelhar:
             img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        tira.paste(img, (i * larg, 0))
+        tira.paste(img, ((i % colunas) * larg, (i // colunas) * alt))
 
     pasta = SAIDA / f"e{a.estagio}"
     pasta.mkdir(parents=True, exist_ok=True)
-    tira.save(pasta / f"{a.nome}.webp", "WEBP", quality=88, method=6)
+    tira.save(pasta / f"{a.nome}.webp", "WEBP", quality=80, method=6)
 
     indice = SAIDA / "animacoes.json"
     dados = json.loads(indice.read_text()) if indice.exists() else {}
@@ -120,6 +128,8 @@ def main():
         "loop": a.loop,
         "largura": larg,
         "altura": alt,
+        "colunas": colunas,
+        "linhas": linhas,
     }
     indice.write_text(json.dumps(dados, indent=2, ensure_ascii=False) + "\n")
     print(f"{a.nome}: {len(quadros)} quadros de {larg}x{alt} ({metodo}) -> {pasta / (a.nome + '.webp')}")

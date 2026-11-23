@@ -1,1 +1,14 @@
-{}
+{
+  "e1": {
+    "idle": {
+      "arquivo": "e1/idle.webp",
+      "quadros": 46,
+      "fps": 20.0,
+      "loop": true,
+      "largura": 437,
+      "altura": 360,
+      "colunas": 36,
+      "linhas": 2
+    }
+  }
+}

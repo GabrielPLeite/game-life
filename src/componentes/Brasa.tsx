@@ -53,11 +53,15 @@ function useCatalogo() {
 function Quadros({ anim, onFim }: { anim: Animacao; onFim: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const fim = useRef(onFim);
+  const colunas = anim.colunas ?? anim.quadros;
+  const linhas = anim.linhas ?? 1;
   fim.current = onFim;
   useEffect(() => {
     const calmo = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const mostrar = (i: number) => {
-      if (ref.current) ref.current.style.backgroundPosition = `${anim.quadros > 1 ? (i / (anim.quadros - 1)) * 100 : 0}% 0`;
+      const c = i % colunas;
+      const l = Math.floor(i / colunas);
+      if (ref.current) ref.current.style.backgroundPosition = `${colunas > 1 ? (c / (colunas - 1)) * 100 : 0}% ${linhas > 1 ? (l / (linhas - 1)) * 100 : 0}%`;
     };
     mostrar(0);
     if (calmo) {
@@ -82,7 +86,7 @@ function Quadros({ anim, onFim }: { anim: Animacao; onFim: () => void }) {
     <div
       ref={ref}
       className="brasa-quadros"
-      style={{ backgroundImage: `url(${BASE}brasa/anim/${anim.arquivo})`, backgroundSize: `${anim.quadros * 100}% 100%`, aspectRatio: `${anim.largura} / ${anim.altura}` }}
+      style={{ backgroundImage: `url(${BASE}brasa/anim/${anim.arquivo})`, backgroundSize: `${colunas * 100}% ${linhas * 100}%`, aspectRatio: `${anim.largura} / ${anim.altura}` }}
     />
   );
 }
