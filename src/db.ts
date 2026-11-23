@@ -2,6 +2,7 @@
 // Regra geral: nada é apagado de verdade. Desfazer marca o registro com "excluidoEm".
 import Dexie, { type EntityTable } from "dexie";
 import { tempoNoAlvoDoDia, type LeituraSensor, type Tendencia } from "./sensor";
+import type { RefeicaoBrasa } from "./brasa";
 import { META_AGUA_PADRAO_ML, diaLogico, somarDias, turnoDoHorario, type LimitesGlicose, type MudancaDeModo, type ResultadoChecagem, type TipoMeta } from "./regras";
 
 /** De onde veio um registro. Hoje é sempre manual; relógio e sensor entram depois. */
@@ -213,6 +214,8 @@ export interface Configuracoes extends LimitesGlicose {
    * Vazio = app de antes da versão generalista (glicose ligada).
    */
   glicoseHistorico?: MudancaDeModo[];
+  /** Quem aparece no topo do app. Vazio = Brasa (o herói fica guardado, com tudo o que tinha). */
+  companheiro?: "brasa" | "heroi";
 }
 
 /** A parte de glicose (medições, sensor, checagem antes do treino, relatório) está ligada agora? */
@@ -247,6 +250,7 @@ class Banco extends Dexie {
   diasSensor!: EntityTable<DiaSensor, "dia">;
   cofre!: EntityTable<SenhaCofre, "id">;
   regas!: EntityTable<Rega, "id">;
+  brasa!: EntityTable<RefeicaoBrasa, "id">;
   dias!: EntityTable<Dia, "dia">;
   configuracoes!: EntityTable<Configuracoes, "id">;
 
@@ -316,6 +320,8 @@ class Banco extends Dexie {
       });
     // Versão 9: cofre de senha (fora do backup).
     this.version(9).stores({ cofre: "id" });
+    // Versão 10: refeições da Brasa (uma por refeição em cada dia).
+    this.version(10).stores({ brasa: "id, dia" });
   }
 }
 
@@ -576,6 +582,16 @@ async function atualizarDiasSensor(dias: string[]): Promise<void> {
 /** Leituras do sensor a partir de um horário (ms). */
 export const leiturasDoSensorDesde = (ts: number) => db.sensor.where("ts").aboveOrEqual(ts).toArray();
 
+// ---------- Brasa ----------
+
+/** Alimenta a Brasa na refeição de agora. Alimentar de novo na mesma refeição não muda nada. */
+export async function alimentarBrasa(refeicao: RefeicaoBrasa["refeicao"]): Promise<void> {
+  const dia = diaLogico();
+  const id = `${dia}-${refeicao}`;
+  if (await db.brasa.get(id)) return;
+  await db.brasa.put({ id, dia, refeicao, criadoEm: agoraIso() });
+}
+
 // ---------- Backup ----------
 
 /** Junta todos os dados em um objeto, para o backup em arquivo. */
@@ -599,6 +615,7 @@ export async function exportarTudo() {
     registrosMeta: await db.registrosMeta.toArray(),
     vasos: await db.vasos.toArray(),
     regas: await db.regas.toArray(),
+    brasa: await db.brasa.toArray(),
   };
 }
 
@@ -610,7 +627,7 @@ export type Backup = Awaited<ReturnType<typeof exportarTudo>>;
  */
 export async function restaurarBackup(dados: Partial<Backup> & { app?: string }): Promise<void> {
   if (dados.app !== "game-life") throw new Error("Este arquivo não é um backup do Game Life.");
-  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.sensor, db.sincronizacoes, db.metas, db.registrosMeta, db.vasos, db.regas, db.dias, db.configuracoes];
+  const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.sensor, db.sincronizacoes, db.metas, db.registrosMeta, db.vasos, db.regas, db.brasa, db.dias, db.configuracoes];
   await db.transaction("rw", tabelas, async () => {
     await Promise.all(tabelas.map((t) => t.clear()));
     await db.agua.bulkPut(dados.agua ?? []);
@@ -626,6 +643,7 @@ export async function restaurarBackup(dados: Partial<Backup> & { app?: string })
     await db.registrosMeta.bulkPut(dados.registrosMeta ?? []);
     await db.vasos.bulkPut(dados.vasos ?? []);
     await db.regas.bulkPut(dados.regas ?? []);
+    await db.brasa.bulkPut(dados.brasa ?? []);
     await db.dias.bulkPut(dados.dias ?? []);
     if (dados.configuracoes) await db.configuracoes.put({ ...CONFIG_PADRAO, ...dados.configuracoes, id: "unica" });
   });

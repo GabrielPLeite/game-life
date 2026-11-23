@@ -12,11 +12,13 @@ const dataCurta = (dia: string) => dia.slice(8, 10) + "/" + dia.slice(5, 7);
 const comSinal = (n: number) => (n >= 0 ? `+${n}` : `${n}`);
 
 /** Aba Aventura: ficha, batalha, chefe, missões, loja, recompensas, bestiário e conquistas. */
-export default function Jogo({ resumo, golpe }: { resumo: Resumo; golpe: Golpe | null }) {
+/** comHeroi falso: a Brasa está no lugar do herói, então ficha, batalha, loja e bestiário ficam guardados. */
+export default function Jogo({ resumo, golpe, comHeroi = true }: { resumo: Resumo; golpe: Golpe | null; comHeroi?: boolean }) {
   const { missoes, chefe, conquistas, plano, recompensas } = resumo.jogo;
   const r = resumo.rpg;
   return (
     <>
+      {comHeroi && (
       <section className="cartao">
         <div className="cartao-topo">
           <h2>Ficha do herói</h2>
@@ -44,8 +46,9 @@ export default function Jogo({ resumo, golpe }: { resumo: Resumo; golpe: Golpe |
           recorde de sequência. {r.classe ? CLASSES[r.classe].descricao : ""}
         </p>
       </section>
+      )}
 
-      <Batalha resumo={resumo} golpe={golpe} />
+      {comHeroi && <Batalha resumo={resumo} golpe={golpe} />}
 
       <section className="cartao">
         <div className="cartao-topo">
@@ -96,10 +99,11 @@ export default function Jogo({ resumo, golpe }: { resumo: Resumo; golpe: Golpe |
         </ul>
       </section>
 
-      <Loja resumo={resumo} />
+      {comHeroi && <Loja resumo={resumo} />}
 
       <Recompensas recompensas={recompensas} nivelAtual={resumo.nivel.nivel} />
 
+      {comHeroi && (
       <section className="cartao">
         <div className="cartao-topo">
           <h2>Bestiário</h2>
@@ -119,6 +123,7 @@ export default function Jogo({ resumo, golpe }: { resumo: Resumo; golpe: Golpe |
           })}
         </ul>
       </section>
+      )}
 
       <section className="cartao">
         <h2>Conquistas</h2>

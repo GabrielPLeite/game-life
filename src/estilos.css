@@ -532,3 +532,23 @@ header.heroi > * { min-width: 0; }
 .avancado summary { cursor: pointer; color: #2b1d0e99; font-size: 0.9rem; }
 .cofre .senha { align-items: center; gap: 0.75rem; }
 .cofre .senha code { font-size: 1.15rem; letter-spacing: 0.06em; background: #d9c79666; padding: 0.3rem 0.5rem; border-radius: 4px; word-break: break-all; }
+
+/* ---------- Brasa ---------- */
+.numeros.quatro.tres { grid-template-columns: repeat(3, 1fr); }
+.brasa-palco { position: relative; display: grid; justify-items: center; gap: 6px; padding: 8px 0 4px; }
+.brasa-fala { position: relative; margin: 0; max-width: 34ch; padding: 10px 14px; background: var(--creme, #f6ebcb); color: var(--tinta, #2b1d0e); border: 1.5px solid var(--borda); border-radius: 12px; font-style: italic; text-align: center; animation: surge 0.35s ease-out; }
+.brasa-fala::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 14px; height: 14px; background: inherit; border-right: 1.5px solid var(--borda); border-bottom: 1.5px solid var(--borda); transform: translateX(-50%) rotate(45deg); }
+.brasa-corpo { position: relative; background: none; border: 0; padding: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.brasa-corpo img { display: block; width: min(250px, 66vw); height: 190px; object-fit: contain; filter: drop-shadow(0 6px 10px #3b291355); user-select: none; }
+.brasa-corpo:focus-visible { outline: 2px solid var(--vinho, #7a1f1f); outline-offset: 2px; border-radius: 12px; }
+.brasa-corpo.pula { animation: pula 0.5s ease-out; }
+.brasa-balao { position: absolute; top: 4px; right: 4px; font-size: 1.6rem; background: var(--creme, #f6ebcb); border: 1.5px solid var(--borda); border-radius: 50%; width: 44px; height: 44px; display: grid; place-items: center; animation: flutua 2.4s ease-in-out infinite; }
+.brasa-humor { font-size: 0.85rem; }
+.brasa-refeicoes { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 8px 0; }
+.brasa-refeicoes .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1.5px solid var(--borda); border-radius: 999px; font-size: 0.85rem; }
+.brasa-refeicoes .chip.feito { background: var(--treino); color: var(--creme, #fff); border-color: var(--treino); }
+.brasa-refeicoes .chip.aberta { border-color: var(--vinho, #7a1f1f); font-weight: 600; }
+.brasa-crescimento { margin-top: 10px; }
+@keyframes pula { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(-12px) scale(1.04, 0.97); } 70% { transform: translateY(0) scale(0.98, 1.03); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .brasa-corpo.pula, .brasa-balao, .brasa-fala { animation: none; } }
+.brasa-refeicoes .chip.feito small { color: inherit; opacity: 0.85; }

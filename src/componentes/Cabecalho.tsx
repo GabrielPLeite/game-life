@@ -15,7 +15,8 @@ export function melhoresItens(ids: string[]) {
 }
 
 /** Cartão do herói: personagem, nível, XP, ouro e sequência. */
-export default function Cabecalho({ resumo }: { resumo: Resumo }) {
+/** semHeroi: a Brasa está no lugar do herói, então some o retrato, a classe, o ouro e o equipamento. */
+export default function Cabecalho({ resumo, semHeroi = false }: { resumo: Resumo; semHeroi?: boolean }) {
   const { nivel, xpNoNivel, xpParaProximo } = resumo.nivel;
   const s = resumo.sequencia;
   const r = resumo.rpg;
@@ -24,17 +25,17 @@ export default function Cabecalho({ resumo }: { resumo: Resumo }) {
   return (
     <header className="heroi">
       <div className="heroi-topo">
-        <div className="retrato">
-          <Sprite desenho={desenhoDoHeroi(classe)} tamanho={84} className="respira" rotulo={`Herói ${CLASSES[classe].nome}`} />
-        </div>
+        {!semHeroi && (
+          <div className="retrato">
+            <Sprite desenho={desenhoDoHeroi(classe)} tamanho={84} className="respira" rotulo={`Herói ${CLASSES[classe].nome}`} />
+          </div>
+        )}
         <div className="heroi-dados">
           <div className="linha">
-            <h1>{r.nome ?? "Herói sem nome"}</h1>
+            <h1>{semHeroi ? `Nível ${nivel}` : r.nome ?? "Herói sem nome"}</h1>
             <span className="xp-dia">+{resumo.xpHoje.total} XP hoje</span>
           </div>
-          <p className="suave">
-            Nível {nivel} · {CLASSES[classe].nome} · {r.titulo}
-          </p>
+          <p className="suave">{semHeroi ? r.titulo : `Nível ${nivel} · ${CLASSES[classe].nome} · ${r.titulo}`}</p>
           <div className="barra" role="progressbar" aria-label="Progresso do nível" aria-valuenow={xpNoNivel} aria-valuemax={xpParaProximo}>
             <div className="barra-cheia xp" style={{ width: `${(xpNoNivel / xpParaProximo) * 100}%` }} />
           </div>
@@ -42,7 +43,7 @@ export default function Cabecalho({ resumo }: { resumo: Resumo }) {
             <span className="xp-texto">
               {xpNoNivel} / {xpParaProximo} XP
             </span>
-            {itens.length > 0 && (
+            {!semHeroi && itens.length > 0 && (
               <span className="equipamento" aria-label={`Equipado: ${itens.map((i) => i.nome).join(", ")}`}>
                 {itens.map((i) => i.icone).join(" ")}
               </span>
@@ -50,11 +51,13 @@ export default function Cabecalho({ resumo }: { resumo: Resumo }) {
           </div>
         </div>
       </div>
-      <dl className="numeros quatro">
-        <div>
-          <dt>🪙 Ouro</dt>
-          <dd className="ouro">{r.ouro}</dd>
-        </div>
+      <dl className={`numeros quatro${semHeroi ? " tres" : ""}`}>
+        {!semHeroi && (
+          <div>
+            <dt>🪙 Ouro</dt>
+            <dd className="ouro">{r.ouro}</dd>
+          </div>
+        )}
         <div>
           <dt>🔥 Sequência</dt>
           <dd>{s.atual} {s.atual === 1 ? "dia" : "dias"}</dd>
