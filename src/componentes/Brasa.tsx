@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { ehAndroid, linkBolinha } from "../flutuante";
+import { MiniBrasa, useJanelinha } from "./Flutuante";
 import { alimentarBrasa } from "../db";
 import { estagioDe, falaDe, humorDe, janelaAberta, JANELAS, poseDe, proximaJanela, type Humor, type Refeicao, type RefeicaoBrasa, type Situacao } from "../brasa";
 import type { Resumo } from "../resumo";
@@ -15,6 +18,23 @@ function useAgora() {
     return () => clearInterval(t);
   }, []);
   return agora;
+}
+
+const CHAVE_BOLINHA = "brasa-bolinha";
+function lerBolinha() {
+  try {
+    return localStorage.getItem(CHAVE_BOLINHA) === "1";
+  } catch {
+    return false;
+  }
+}
+function gravarBolinha(ligada: boolean) {
+  try {
+    if (ligada) localStorage.setItem(CHAVE_BOLINHA, "1");
+    else localStorage.removeItem(CHAVE_BOLINHA);
+  } catch {
+    /* sem armazenamento: só não lembra */
+  }
 }
 
 const ROTULO_HUMOR: Record<Humor, string> = {
@@ -419,6 +439,27 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
     await alimentarBrasa(janela);
     setReacao({ situacao: "alimentou", humor: "satisfeita", n: Date.now() });
     reagir("alimentou");
+    // Com a bolinha ligada, avisa o celular que ela já comeu, para a bolinha parar de pedir comida.
+    if (bolinhaLigada) setTimeout(() => (location.href = linkDaBolinha("satisfeita", [...comidas, janela])), 1200);
+  };
+
+  // Brasa fora do app: janelinha por cima de tudo no PC, bolinha flutuante no celular.
+  const janelinha = useJanelinha();
+  const android = typeof navigator !== "undefined" && ehAndroid(navigator.userAgent);
+  const [bolinhaLigada, setBolinhaLigada] = useState(() => lerBolinha());
+  const [semAppCelular, setSemAppCelular] = useState(false);
+  useEffect(() => {
+    if (location.hash !== "#bolinha=sem-app") return;
+    history.replaceState(null, "", location.pathname + location.search);
+    gravarBolinha(false);
+    setBolinhaLigada(false);
+    setSemAppCelular(true);
+  }, []);
+  const linkDaBolinha = (h: Humor, r: Refeicao[]) => linkBolinha(`${location.origin}${BASE}`, { estagio: estagio.n, humor: h, refeicoesHoje: r, dia: hoje });
+  const ligarBolinha = () => {
+    gravarBolinha(true);
+    setBolinhaLigada(true);
+    location.href = linkDaBolinha(humorDoDia, comidas);
   };
 
   const aguaPct = resumo.hoje.metaAguaMl ? Math.min(100, Math.round((resumo.hoje.aguaMl / resumo.hoje.metaAguaMl) * 100)) : 0;
@@ -437,7 +478,18 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
         <span title="Congelamentos">
           ❄️ {s.congelamentos}/{MAX_CONGELAMENTOS}
         </span>
+        {janelinha.suportado && (
+          <button className={`covil-fora ${janelinha.janela ? "ligado" : ""}`} onClick={() => (janelinha.janela ? janelinha.fechar() : void janelinha.abrir())} title={janelinha.janela ? "Fechar a janelinha da Brasa" : "Brasa numa janelinha por cima de tudo"} aria-label="Janelinha da Brasa">
+            🪟
+          </button>
+        )}
+        {android && (
+          <button className={`covil-fora ${bolinhaLigada ? "ligado" : ""}`} onClick={ligarBolinha} title={bolinhaLigada ? "Atualizar a bolinha da Brasa" : "Brasa flutuando por cima dos apps"} aria-label="Bolinha flutuante da Brasa">
+            🫧
+          </button>
+        )}
       </div>
+      {semAppCelular && <p className="nota covil-aviso">Para a bolinha flutuante, instale a versão nova do app do celular.</p>}
 
       <div className={`cena ${noite ? "noite" : ""}`}>
         <svg className="cena-fundo" viewBox="0 0 400 260" preserveAspectRatio="xMidYMax slice" aria-hidden>
@@ -558,6 +610,20 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
           {atalhoAberto.painel}
         </Gaveta>
       )}
+      {janelinha.janela &&
+        createPortal(
+          <MiniBrasa
+            imagem={`${location.origin}${BASE}brasa/${pose.arquivo}.webp`}
+            fala={fala}
+            legenda={`${estagio.nome} · ${ROTULO_HUMOR[humor]}`}
+            balao={pose.balao}
+            noite={noite}
+            podeComer={podeComer}
+            onTocar={tocar}
+            onAlimentar={() => void alimentar()}
+          />,
+          janelinha.janela.document.body,
+        )}
     </section>
   );
 }
