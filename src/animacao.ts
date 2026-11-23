@@ -11,6 +11,8 @@ import type { Humor, NumeroEstagio } from "./brasa";
 
 export interface Animacao {
   arquivo: string;
+  /** "webm" = vídeo com transparência; sem isso, é uma grade de quadros em WebP. */
+  formato?: "webm" | "webp";
   quadros: number;
   fps: number;
   loop: boolean;

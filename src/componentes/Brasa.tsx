@@ -92,6 +92,92 @@ function Quadros({ anim, onFim }: { anim: Animacao; onFim: () => void }) {
   );
 }
 
+// Vídeos WebM com transparência. Cada arquivo é baixado uma vez e fica na memória: trocar de
+// animação não espera a rede. O service worker guarda os arquivos para o app funcionar offline.
+const clipes = new Map<string, Promise<string | undefined>>();
+function carregarClipe(arquivo: string) {
+  let p = clipes.get(arquivo);
+  if (!p) {
+    p = fetch(`${BASE}brasa/anim/${arquivo}`)
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("clipe"))))
+      .then((b) => URL.createObjectURL(b))
+      .catch(() => {
+        clipes.delete(arquivo);
+        return undefined;
+      });
+    clipes.set(arquivo, p);
+  }
+  return p;
+}
+
+/** Baixa em segundo plano todos os vídeos do estágio, um de cada vez, para as trocas serem instantâneas. */
+function usePreCarregar(cat: Catalogo | undefined, estagio: number) {
+  useEffect(() => {
+    if (!cat) return;
+    const lista = Object.values(cat[`e${estagio}`] ?? {}).filter((a) => a?.formato === "webm");
+    let vivo = true;
+    void (async () => {
+      for (const a of lista) if (vivo) await carregarClipe(a.arquivo);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [cat, estagio]);
+}
+
+interface Camada {
+  id: number;
+  anim: Animacao;
+  url: string;
+}
+
+/**
+ * Toca um vídeo da Brasa. Quando a animação muda, o vídeo novo entra POR CIMA do antigo e o antigo
+ * só sai quando o novo já está rodando: nunca aparece um quadro vazio entre duas animações.
+ * Enquanto o primeiro vídeo não chega, mostra `reserva` (a pose parada).
+ */
+function Clipe({ anim, chave, onFim, reserva }: { anim: Animacao; chave: string; onFim: () => void; reserva: ReactNode }) {
+  const [camadas, setCamadas] = useState<Camada[]>([]);
+  const seq = useRef(0);
+  const fim = useRef(onFim);
+  fim.current = onFim;
+  const calmo = typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const dados = useRef(anim);
+  dados.current = anim;
+
+  useEffect(() => {
+    let vivo = true;
+    const a = dados.current;
+    void carregarClipe(a.arquivo).then((url) => {
+      if (!vivo || !url) return;
+      if (calmo && !a.loop) return fim.current();
+      setCamadas((c) => [...c, { id: ++seq.current, anim: a, url }].slice(-2));
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [chave, calmo]);
+
+  return (
+    <div className="brasa-clipe" style={{ aspectRatio: `${anim.largura} / ${anim.altura}` }}>
+      {camadas.length === 0 && reserva}
+      {camadas.map((c) => (
+        <video
+          key={c.id}
+          src={c.url}
+          muted
+          playsInline
+          autoPlay={!calmo}
+          loop={c.anim.loop}
+          preload="auto"
+          onPlaying={() => setCamadas((cs) => cs.filter((x) => x.id >= c.id))}
+          onEnded={() => !c.anim.loop && fim.current()}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ---------- Movimento ----------
 
 /** Velocidade de passeio (% da largura da cena por segundo). Zero = fica no lugar. */
@@ -279,6 +365,7 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
 
   // Animação por quadros: base do humor, com gestos espontâneos e reações por cima.
   const cat = useCatalogo();
+  usePreCarregar(cat, estagio.n);
   const base = animacaoBase(cat, estagio.n, humor);
   const [extra, setExtra] = useState<string | null>(null);
   const extraRef = useRef(extra);
@@ -388,7 +475,9 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
         <div className="brasa-andante" ref={corpo}>
           <button className="brasa-corpo" onClick={tocar} aria-label={`Brasa está ${ROTULO_HUMOR[humor]}. Toque para fazer carinho.`}>
             <div className="brasa-virador" ref={virador}>
-              {anim ? (
+              {anim?.formato === "webm" ? (
+                <Clipe anim={anim} chave={`${nomeAnim}-${variacao}`} onFim={aoTerminar} reserva={<img src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />} />
+              ) : anim ? (
                 <Quadros key={`${nomeAnim}-${variacao}`} anim={anim} onFim={aoTerminar} />
               ) : (
                 <img key={pose.arquivo} src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />

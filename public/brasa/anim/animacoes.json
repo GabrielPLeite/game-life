@@ -1,15 +1,19 @@
 {
   "e1": {
+    "_caixa": {
+      "l": 0.04161458333333333,
+      "r": 0.9594270833333333,
+      "t": 0.08671875,
+      "b": 0.82175
+    },
     "idle": {
-      "arquivo": "e1/idle.webp",
-      "quadros": 46,
-      "fps": 20.0,
+      "arquivo": "e1/idle.webm",
+      "formato": "webm",
+      "quadros": 132,
+      "fps": 24.0,
       "loop": true,
-      "largura": 388,
-      "altura": 320,
-      "colunas": 41,
-      "vaievem": true,
-      "linhas": 2
+      "largura": 448,
+      "altura": 360
     }
   }
 }
