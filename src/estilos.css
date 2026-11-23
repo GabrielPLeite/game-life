@@ -533,22 +533,71 @@ header.heroi > * { min-width: 0; }
 .cofre .senha { align-items: center; gap: 0.75rem; }
 .cofre .senha code { font-size: 1.15rem; letter-spacing: 0.06em; background: #d9c79666; padding: 0.3rem 0.5rem; border-radius: 4px; word-break: break-all; }
 
-/* ---------- Brasa ---------- */
+/* ---------- Brasa: covil (tela Hoje) ---------- */
 .numeros.quatro.tres { grid-template-columns: repeat(3, 1fr); }
-.brasa-palco { position: relative; display: grid; justify-items: center; gap: 6px; padding: 8px 0 4px; }
-.brasa-fala { position: relative; margin: 0; max-width: 34ch; padding: 10px 14px; background: var(--creme, #f6ebcb); color: var(--tinta, #2b1d0e); border: 1.5px solid var(--borda); border-radius: 12px; font-style: italic; text-align: center; animation: surge 0.35s ease-out; }
-.brasa-fala::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 14px; height: 14px; background: inherit; border-right: 1.5px solid var(--borda); border-bottom: 1.5px solid var(--borda); transform: translateX(-50%) rotate(45deg); }
-.brasa-corpo { position: relative; background: none; border: 0; padding: 6px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.brasa-corpo img { display: block; width: min(250px, 66vw); height: 190px; object-fit: contain; filter: drop-shadow(0 6px 10px #3b291355); user-select: none; }
-.brasa-corpo:focus-visible { outline: 2px solid var(--vinho, #7a1f1f); outline-offset: 2px; border-radius: 12px; }
-.brasa-corpo.pula { animation: pula 0.5s ease-out; }
-.brasa-balao { position: absolute; top: 4px; right: 4px; font-size: 1.6rem; background: var(--creme, #f6ebcb); border: 1.5px solid var(--borda); border-radius: 50%; width: 44px; height: 44px; display: grid; place-items: center; animation: flutua 2.4s ease-in-out infinite; }
-.brasa-humor { font-size: 0.85rem; }
-.brasa-refeicoes { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 8px 0; }
+.covil { display: grid; gap: 10px; margin-bottom: 12px; }
+.covil-topo { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.covil-nivel { font-family: "IM Fell English SC", serif; font-size: 1.2rem; }
+.covil-topo .barra { flex: 1; min-width: 60px; }
+.barra.fina { height: 8px; margin: 0; }
+.barra-cheia.fogo { background: linear-gradient(90deg, #b3361b, #f08a24, #ffd166); }
+
+.cena { position: relative; height: clamp(300px, 52vh, 420px); border: 2px solid var(--borda); border-radius: 6px; overflow: hidden;
+  background: linear-gradient(180deg, #f6e3b4 0%, #f0cf93 55%, #e6b877 100%); box-shadow: inset 0 0 40px #8a6c4433; }
+.cena.noite { background: linear-gradient(180deg, #1d1a33 0%, #3b2c4a 55%, #6b4436 100%); }
+.cena-fundo { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cena-fundo .montanha-longe { fill: #b98d5a; opacity: 0.45; }
+.cena-fundo .fumaca { fill: none; stroke: #8a6c44; stroke-width: 3; stroke-linecap: round; opacity: 0.35; }
+.cena-fundo .morro { fill: #c99a5e; opacity: 0.55; }
+.cena-fundo .chao { fill: #a8773f; opacity: 0.55; }
+.cena-fundo .pedras ellipse { fill: #6b4a2a; opacity: 0.5; }
+.cena.noite .montanha-longe { fill: #2a2140; opacity: 0.9; }
+.cena.noite .morro { fill: #3a2a3a; opacity: 0.9; }
+.cena.noite .chao { fill: #4a2f2a; opacity: 0.9; }
+.estrelas { position: absolute; inset: 0 0 50% 0; background-image: radial-gradient(1.5px 1.5px at 12% 20%, #fff8, transparent), radial-gradient(1px 1px at 30% 40%, #fff9, transparent), radial-gradient(1.5px 1.5px at 55% 15%, #fffa, transparent), radial-gradient(1px 1px at 72% 35%, #fff8, transparent), radial-gradient(1.5px 1.5px at 88% 18%, #fff9, transparent), radial-gradient(1px 1px at 45% 28%, #fff7, transparent); animation: pisca-estrela 4s ease-in-out infinite; }
+@keyframes pisca-estrela { 50% { opacity: 0.55; } }
+
+.cena-status { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 6px; z-index: 3; }
+.selo-status { padding: 2px 8px; border-radius: 999px; font-size: 0.8rem; background: #f6ebcbd9; color: #2b1d0e; border: 1px solid #8a6c4480; font-variant-numeric: tabular-nums; }
+.selo-status.ok { background: #2f5a1f; color: #f6ebcb; border-color: #2f5a1f; }
+
+.brasa-fala { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); z-index: 3; width: max-content; max-width: min(300px, calc(100% - 24px)); margin: 0; padding: 8px 12px;
+  background: #f6ebcb; color: #2b1d0e; border: 1.5px solid #8a6c44; border-radius: 12px; font-style: italic; text-align: center; font-size: 0.95rem; line-height: 1.3; animation: fala-surge 0.4s ease-out; }
+@keyframes fala-surge { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+.brasa-andante { position: absolute; bottom: 16px; left: 50%; width: 0; z-index: 2; }
+.brasa-corpo { position: absolute; bottom: 0; left: 0; transform: translateX(-50%); background: none; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.brasa-corpo:focus-visible { outline: 2px solid #7a1f1f; outline-offset: 2px; border-radius: 12px; }
+.brasa-virador { transform-origin: 50% 100%; will-change: transform; }
+.brasa-virador img { display: block; height: clamp(130px, 24vh, 190px); width: auto; max-width: 62vw; object-fit: contain; filter: drop-shadow(0 0 10px #ff8a2a40); user-select: none; -webkit-user-drag: none; }
+.brasa-sombra { position: absolute; bottom: -6px; left: 0; width: 150px; height: 16px; transform: translateX(-50%); background: radial-gradient(closest-side, #3b291355, transparent); z-index: -1; }
+.brasa-balao { position: absolute; top: -8px; right: -18px; font-size: 1.4rem; background: #f6ebcb; border: 1.5px solid #8a6c44; border-radius: 50%; width: 42px; height: 42px; display: grid; place-items: center; animation: flutua 2s ease-in-out infinite; }
+.faiscas { position: absolute; inset: 0; pointer-events: none; }
+.faiscas i { position: absolute; bottom: 30%; width: 5px; height: 5px; border-radius: 50%; background: radial-gradient(circle, #fff3b0, #ff9a2a 60%, transparent 70%); opacity: 0; animation: faisca 2.6s ease-out infinite; }
+@keyframes faisca { 0% { opacity: 0; transform: translate(0, 0) scale(1); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(14px, -110px) scale(0.3); } }
+.zzz { position: absolute; top: 0; right: 10%; font-family: "IM Fell English SC", serif; color: #5a3d1e; pointer-events: none; }
+.cena.noite .zzz { color: #e8d9b5; }
+.zzz i { position: absolute; font-style: normal; opacity: 0; animation: zzz 3s ease-in infinite; }
+.zzz i:nth-child(2) { animation-delay: 1s; font-size: 1.2em; }
+.zzz i:nth-child(3) { animation-delay: 2s; font-size: 1.5em; }
+@keyframes zzz { 0% { opacity: 0; transform: translate(0, 0); } 25% { opacity: 1; } 100% { opacity: 0; transform: translate(18px, -50px); } }
+.cena-legenda { position: absolute; bottom: 6px; right: 10px; z-index: 3; font-size: 0.8rem; color: #5a3d1e; font-style: italic; }
+.cena.noite .cena-legenda { color: #e8d9b5; }
+
+.covil-acoes { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px; }
+.atalho { position: relative; display: grid; justify-items: center; gap: 2px; padding: 8px 4px 6px; border: 1.5px solid var(--borda); border-radius: 6px; background: #f6ebcb80; color: var(--texto); font-size: 0.8rem; min-height: 64px; }
+.atalho-icone { font-size: 1.6rem; line-height: 1; }
+.atalho.alerta { border-color: #7a1f1f; box-shadow: 0 0 0 1px #7a1f1f inset; }
+.atalho-selo { position: absolute; top: -6px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: #7a1f1f; color: #f6ebcb; font-size: 0.75rem; display: grid; place-items: center; }
+.covil-crescimento .nota { margin: 4px 0 0; }
+
+.gaveta-fundo { position: fixed; inset: 0; z-index: 50; background: #1b120899; display: flex; align-items: flex-end; justify-content: center; animation: surge 0.2s ease-out; }
+.gaveta { width: min(640px, 100%); max-height: 86vh; overflow-y: auto; background: var(--fundo); border-top: 2px solid var(--borda); border-radius: 12px 12px 0 0; padding: 12px max(16px, env(safe-area-inset-left, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)); animation: gaveta-sobe 0.25s ease-out; }
+.gaveta-topo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.gaveta-topo .link { font-size: 1.2rem; padding: 6px 10px; }
+@keyframes gaveta-sobe { from { transform: translateY(40px); opacity: 0.5; } to { transform: none; opacity: 1; } }
+.brasa-refeicoes { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .brasa-refeicoes .chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1.5px solid var(--borda); border-radius: 999px; font-size: 0.85rem; }
 .brasa-refeicoes .chip.feito { background: var(--treino); color: var(--creme, #fff); border-color: var(--treino); }
-.brasa-refeicoes .chip.aberta { border-color: var(--vinho, #7a1f1f); font-weight: 600; }
-.brasa-crescimento { margin-top: 10px; }
-@keyframes pula { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(-12px) scale(1.04, 0.97); } 70% { transform: translateY(0) scale(0.98, 1.03); } 100% { transform: none; } }
-@media (prefers-reduced-motion: reduce) { .brasa-corpo.pula, .brasa-balao, .brasa-fala { animation: none; } }
-.brasa-refeicoes .chip.feito small { color: inherit; opacity: 0.85; }
+.brasa-refeicoes .chip.aberta { border-color: #7a1f1f; font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .faiscas, .zzz, .estrelas, .brasa-balao, .brasa-fala, .gaveta, .gaveta-fundo { animation: none; } .faiscas { display: none; } }

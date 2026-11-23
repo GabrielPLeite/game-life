@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { alimentarBrasa } from "../db";
 import { estagioDe, falaDe, humorDe, janelaAberta, JANELAS, poseDe, proximaJanela, type Humor, type Refeicao, type RefeicaoBrasa, type Situacao } from "../brasa";
 import type { Resumo } from "../resumo";
+import { MAX_CONGELAMENTOS } from "../regras";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -32,10 +33,147 @@ const ROTULO_HUMOR: Record<Humor, string> = {
   irritada: "fingindo estar brava",
 };
 
-/** A Brasa no topo do app: pose, fala, crescimento e as refeições do dia. */
-export default function Brasa({ resumo, refeicoes, hoje }: { resumo: Resumo; refeicoes: RefeicaoBrasa[]; hoje: string }) {
+// ---------- Animação ----------
+
+/** Velocidade de passeio (% da largura da cena por segundo). Zero = fica no lugar. */
+const VELOCIDADE: Partial<Record<Humor, number>> = { animada: 16, energia: 13, feliz: 9, hidratada: 9, curiosa: 7, sede: 4 };
+/** Para que lado cada desenho olha (1 = direita). Os outros olham para a esquerda. */
+const OLHA_DIREITA = new Set(["e1-com-sede", "e1-bem-hidratada", "e1-com-fome", "e1-doente", "e1-carinhosa", "e2-curiosa", "e2-bufando", "e3-feliz", "e3-rugindo", "e3-pronta", "e3-carinhosa"]);
+
+/**
+ * Movimento da Brasa feito em código: passeia pela cena dando passinhos, para, respira, vira.
+ * Com fome dá pulinhos, cansada respira fundo devagar. Mexe direto no estilo (sem re-render).
+ */
+function useMovimento(humor: Humor, arquivo: string, pulo: number) {
+  const corpo = useRef<HTMLDivElement>(null);
+  const virador = useRef<HTMLDivElement>(null);
+  const estado = useRef({ x: 50, alvo: 50, dir: -1, pausaAte: 0, ultimo: 0, puloEm: -1e9 });
+  const humorRef = useRef(humor);
+  humorRef.current = humor;
+  const arquivoRef = useRef(arquivo);
+  arquivoRef.current = arquivo;
+
+  useEffect(() => {
+    estado.current.puloEm = performance.now();
+  }, [pulo]);
+
+  useEffect(() => {
+    const calmo = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    let id = 0;
+    const quadro = (t: number) => {
+      const e = estado.current;
+      const dt = Math.min(0.05, (t - (e.ultimo || t)) / 1000);
+      e.ultimo = t;
+      const h = humorRef.current;
+      const vel = calmo ? 0 : VELOCIDADE[h] ?? 0;
+      let andando = false;
+      if (vel > 0 && t > e.pausaAte) {
+        const falta = e.alvo - e.x;
+        if (Math.abs(falta) < 0.6) {
+          e.pausaAte = t + 1500 + Math.random() * 3500;
+          e.alvo = 14 + Math.random() * 72;
+        } else {
+          e.dir = Math.sign(falta);
+          e.x += e.dir * Math.min(Math.abs(falta), vel * dt);
+          andando = true;
+        }
+      } else if (vel === 0) {
+        // Parada: volta devagar para o meio da cena.
+        e.x += (50 - e.x) * Math.min(1, dt * 1.5);
+      }
+
+      let y = 0;
+      let sy = 1;
+      if (!calmo) {
+        if (andando) {
+          const passo = Math.abs(Math.sin((t / 1000) * Math.PI * (2 + vel / 8)));
+          y = -passo * 7;
+          sy = 1 - passo * 0.035;
+        } else if (h === "dormindo" || h === "cansada" || h === "doente" || h === "fraca") {
+          sy = 1 + 0.035 * Math.sin((t / 4200) * Math.PI * 2);
+        } else {
+          sy = 1 + 0.022 * Math.sin((t / 2600) * Math.PI * 2);
+        }
+        // Pulinhos: com fome (pedindo comida), animada de vez em quando, e quando você toca.
+        const ciclo = h === "fome" ? 1700 : h === "animada" ? 3200 : 0;
+        if (ciclo && !andando) {
+          const f = (t % ciclo) / ciclo;
+          if (f < 0.22) y -= Math.sin((f / 0.22) * Math.PI) * 14;
+        }
+        const desde = t - e.puloEm;
+        if (desde < 520) y -= Math.sin((desde / 520) * Math.PI) * 26;
+      }
+      const olhaDireita = OLHA_DIREITA.has(arquivoRef.current) ? 1 : -1;
+      if (corpo.current) corpo.current.style.left = `${e.x}%`;
+      if (virador.current) virador.current.style.transform = `translateY(${y.toFixed(1)}px) scale(${(e.dir * olhaDireita).toFixed(0)}, ${sy.toFixed(3)})`;
+      id = requestAnimationFrame(quadro);
+    };
+    id = requestAnimationFrame(quadro);
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  return { corpo, virador };
+}
+
+/** Faíscas que sobem da Brasa. Mais quando ela está animada; nenhuma quando está de cobertor. */
+function Faiscas({ humor }: { humor: Humor }) {
+  const n = humor === "animada" || humor === "energia" ? 9 : humor === "doente" || humor === "dormindo" ? 0 : humor === "cansada" || humor === "fraca" ? 2 : 5;
+  return (
+    <div className="faiscas" aria-hidden>
+      {Array.from({ length: n }, (_, i) => (
+        <i key={i} style={{ left: `${15 + ((i * 37) % 70)}%`, animationDelay: `${(i * 0.53) % 2.6}s`, animationDuration: `${2.2 + ((i * 7) % 5) * 0.25}s` }} />
+      ))}
+    </div>
+  );
+}
+
+// ---------- Gaveta (painel que sobe de baixo) ----------
+
+export function Gaveta({ titulo, onFechar, children }: { titulo: string; onFechar: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && onFechar();
+    window.addEventListener("keydown", esc);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", esc);
+      document.body.style.overflow = "";
+    };
+  }, [onFechar]);
+  return (
+    <div className="gaveta-fundo" onClick={onFechar}>
+      <div className="gaveta" role="dialog" aria-modal="true" aria-label={titulo} onClick={(e) => e.stopPropagation()}>
+        <div className="gaveta-topo">
+          <h2>{titulo}</h2>
+          <button className="link" onClick={onFechar} aria-label="Fechar">
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Tela principal ----------
+
+export interface AtalhoCovil {
+  id: string;
+  icone: string;
+  nome: string;
+  /** Selo pequeno no canto do ícone (✓, %, !). */
+  selo?: string;
+  alerta?: boolean;
+  painel: ReactNode;
+}
+
+/**
+ * Covil: a Brasa vive numa cena no topo da tela Hoje. Treino, água e o resto viram ícones pequenos
+ * embaixo dela; tocar num ícone abre o painel daquela parte sem sair de perto dela.
+ */
+export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Resumo; refeicoes: RefeicaoBrasa[]; hoje: string; atalhos: AtalhoCovil[] }) {
   const agora = useAgora();
   const [reacao, setReacao] = useState<{ situacao: Situacao; humor?: Humor; n: number } | null>(null);
+  const [aberto, setAberto] = useState<string | null>(null);
   const toques = useRef<number[]>([]);
 
   // A reação a um toque ou à comida dura alguns segundos e some.
@@ -49,17 +187,17 @@ export default function Brasa({ resumo, refeicoes, hoje }: { resumo: Resumo; ref
   const diasCumpridos = dias.filter((d) => d.resultado === "cumprido").length;
   const ultimoTreino = dias.map((d) => d.resultado).lastIndexOf("cumprido");
   const treinouHoje = resumo.hoje.treinosConcluidos.length > 0;
-  const deHoje = refeicoes.filter((r) => r.dia === hoje);
-  const comidas = deHoje.map((r) => r.refeicao);
+  const comidas = refeicoes.filter((r) => r.dia === hoje).map((r) => r.refeicao);
   const ultimaRefeicaoEm = [...refeicoes].sort((a, b) => a.criadoEm.localeCompare(b.criadoEm)).at(-1)?.criadoEm;
   const sono = resumo.habitosHoje.filter((h) => h.tipo === "sono" && !h.excluidoEm).at(-1);
+  const sonoHoras = sono && "horas" in sono ? sono.horas : undefined;
 
   const humorDoDia = humorDe({
     agora,
     treinouHoje,
     diasSemTreino: ultimoTreino < 0 ? undefined : dias.length - 1 - ultimoTreino,
     pausaHoje: !!resumo.hoje.pausa,
-    sonoHoras: sono && "horas" in sono ? sono.horas : undefined,
+    sonoHoras,
     aguaMl: resumo.hoje.aguaMl,
     metaAguaMl: resumo.hoje.metaAguaMl,
     refeicoesHoje: comidas,
@@ -68,12 +206,15 @@ export default function Brasa({ resumo, refeicoes, hoje }: { resumo: Resumo; ref
   const humor = reacao?.humor ?? humorDoDia;
   const estagio = estagioDe(diasCumpridos);
   const pose = poseDe(estagio.n, humor);
-  // A fala do humor muda a cada hora; a de um toque muda a cada toque.
   const fala = reacao ? falaDe(reacao.situacao, `${hoje}-${reacao.n}`) : falaDe(humorDoDia, `${hoje}-${agora.getHours()}`);
+  const { corpo, virador } = useMovimento(humor, pose.arquivo, reacao?.n ?? 0);
 
   const janela = janelaAberta(agora);
   const podeComer = janela !== null && !comidas.includes(janela);
   const proxima = proximaJanela(agora);
+  const h = agora.getHours();
+  const noite = h >= 19 || h < 6;
+  const sonolenta = humor === "dormindo" || humor === "cansada";
 
   const tocar = () => {
     const t = Date.now();
@@ -81,62 +222,110 @@ export default function Brasa({ resumo, refeicoes, hoje }: { resumo: Resumo; ref
     const muitos = toques.current.length >= 5;
     setReacao({ situacao: muitos ? "toqueDemais" : "toque", humor: muitos ? "irritada" : "carinhosa", n: t });
   };
-
   const alimentar = async () => {
-    if (!janela) return;
+    if (!janela || !podeComer) return;
     await alimentarBrasa(janela);
     setReacao({ situacao: "alimentou", humor: "satisfeita", n: Date.now() });
   };
 
+  const aguaPct = resumo.hoje.metaAguaMl ? Math.min(100, Math.round((resumo.hoje.aguaMl / resumo.hoje.metaAguaMl) * 100)) : 0;
+  const { nivel, xpNoNivel, xpParaProximo } = resumo.nivel;
+  const atalhoAberto = atalhos.find((a) => a.id === aberto);
+  const s = resumo.sequencia;
+
   return (
-    <section className="cartao brasa" aria-label="Brasa">
-      <div className="cartao-topo">
-        <h2>Brasa</h2>
-        <span className="suave">{estagio.nome}</span>
+    <section className="covil" aria-label="Brasa">
+      <div className="covil-topo">
+        <span className="covil-nivel">Nível {nivel}</span>
+        <div className="barra fina" role="progressbar" aria-label="Progresso do nível" aria-valuenow={xpNoNivel} aria-valuemax={xpParaProximo}>
+          <div className="barra-cheia xp" style={{ width: `${(xpNoNivel / xpParaProximo) * 100}%` }} />
+        </div>
+        <span title="Sequência">🔥 {s.atual}</span>
+        <span title="Congelamentos">
+          ❄️ {s.congelamentos}/{MAX_CONGELAMENTOS}
+        </span>
       </div>
 
-      <div className="brasa-palco">
-        <p className="brasa-fala" aria-live="polite">
+      <div className={`cena ${noite ? "noite" : ""}`}>
+        <svg className="cena-fundo" viewBox="0 0 400 260" preserveAspectRatio="xMidYMax slice" aria-hidden>
+          <path d="M0 170 L60 120 L95 140 L150 70 L178 92 L200 80 L245 140 L290 110 L340 150 L400 120 L400 260 L0 260Z" className="montanha-longe" />
+          <path d="M178 92 q11 -16 22 -12" className="fumaca" />
+          <path d="M0 200 Q100 168 200 186 T400 178 L400 260 L0 260Z" className="morro" />
+          <ellipse cx="200" cy="236" rx="190" ry="26" className="chao" />
+          <g className="pedras">
+            <ellipse cx="44" cy="226" rx="16" ry="7" />
+            <ellipse cx="360" cy="230" rx="12" ry="6" />
+            <ellipse cx="330" cy="236" rx="7" ry="4" />
+          </g>
+        </svg>
+        {noite && <div className="estrelas" aria-hidden />}
+
+        <div className="cena-status" aria-label="Como ela está">
+          <span className="selo-status" title="Sono da última noite">
+            💤 {sonoHoras !== undefined ? `${String(Math.round(sonoHoras * 10) / 10).replace(".", ",")}h` : "—"}
+          </span>
+          <span className="selo-status" title="Água de hoje">
+            💧 {aguaPct}%
+          </span>
+          <span className={`selo-status ${treinouHoje ? "ok" : ""}`} title="Treino de hoje">
+            💪 {treinouHoje ? "✓" : "—"}
+          </span>
+          <span className="selo-status" title="Refeições dela hoje">
+            🍖 {comidas.length}/3
+          </span>
+        </div>
+
+        <p className="brasa-fala" key={fala} aria-live="polite">
           {fala}
         </p>
-        <button className={`brasa-corpo ${reacao ? "pula" : "respira"}`} onClick={tocar} aria-label={`Brasa está ${ROTULO_HUMOR[humor]}. Toque para fazer carinho.`}>
-          <img key={pose.arquivo} src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />
-          {pose.balao && (
-            <span className="brasa-balao" aria-hidden>
-              {pose.balao}
-            </span>
-          )}
-        </button>
-        <span className="suave brasa-humor">{ROTULO_HUMOR[humor]}</span>
+
+        <div className="brasa-andante" ref={corpo}>
+          <button className="brasa-corpo" onClick={tocar} aria-label={`Brasa está ${ROTULO_HUMOR[humor]}. Toque para fazer carinho.`}>
+            <div className="brasa-virador" ref={virador}>
+              <img key={pose.arquivo} src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />
+            </div>
+            <Faiscas humor={humor} />
+            {pose.balao && (
+              <span className="brasa-balao" aria-hidden>
+                {pose.balao}
+              </span>
+            )}
+            {sonolenta && (
+              <span className="zzz" aria-hidden>
+                <i>z</i>
+                <i>z</i>
+                <i>Z</i>
+              </span>
+            )}
+          </button>
+          <span className="brasa-sombra" aria-hidden />
+        </div>
+
+        <span className="cena-legenda">
+          {estagio.nome} · {ROTULO_HUMOR[humor]}
+        </span>
       </div>
 
-      <div className="brasa-refeicoes">
-        {(Object.keys(JANELAS) as Refeicao[]).map((r) => {
-          const comeu = comidas.includes(r);
-          const aberta = janela === r;
-          return (
-            <span key={r} className={`chip ${comeu ? "feito" : aberta ? "aberta" : ""}`}>
-              {comeu ? "✓" : aberta ? "🍖" : "·"} {JANELAS[r].nome}
-              <small className="suave"> {String(JANELAS[r].inicio).padStart(2, "0")}h</small>
-            </span>
-          );
-        })}
-      </div>
-      {podeComer ? (
-        <button className="principal" onClick={() => void alimentar()}>
-          🍖 Alimentar a Brasa ({JANELAS[janela!].nome.toLowerCase()})
+      <div className="covil-acoes">
+        <button className={`atalho ${podeComer ? "alerta" : ""}`} onClick={() => (podeComer ? void alimentar() : setAberto("comer"))} aria-label={podeComer ? "Alimentar a Brasa" : "Refeições da Brasa"}>
+          <span className="atalho-icone">🍖</span>
+          <span>{podeComer ? "Alimentar" : "Comida"}</span>
+          {podeComer && <b className="atalho-selo">!</b>}
         </button>
-      ) : (
-        <p className="nota">
-          {janela ? "Ela já comeu nesta refeição." : proxima ? `Próxima refeição dela: ${JANELAS[proxima].nome.toLowerCase()}, a partir das ${JANELAS[proxima].inicio}h.` : "As refeições de hoje acabaram. Amanhã tem mais."}
-        </p>
-      )}
+        {atalhos.map((a) => (
+          <button key={a.id} className={`atalho ${a.alerta ? "alerta" : ""}`} onClick={() => setAberto(a.id)}>
+            <span className="atalho-icone">{a.icone}</span>
+            <span>{a.nome}</span>
+            {a.selo && <b className="atalho-selo">{a.selo}</b>}
+          </button>
+        ))}
+      </div>
 
-      <div className="brasa-crescimento">
+      <div className="covil-crescimento">
         {estagio.proximo ? (
           <>
-            <div className="barra" role="progressbar" aria-label={`Crescimento até ${estagio.proximo.nome}`} aria-valuenow={Math.round(estagio.proximo.progresso * 100)} aria-valuemax={100}>
-              <div className="barra-cheia xp" style={{ width: `${estagio.proximo.progresso * 100}%` }} />
+            <div className="barra fina" role="progressbar" aria-label={`Crescimento até ${estagio.proximo.nome}`} aria-valuenow={Math.round(estagio.proximo.progresso * 100)} aria-valuemax={100}>
+              <div className="barra-cheia fogo" style={{ width: `${Math.max(3, estagio.proximo.progresso * 100)}%` }} />
             </div>
             <p className="nota">
               Faltam {estagio.proximo.faltam} {estagio.proximo.faltam === 1 ? "dia" : "dias"} de treino para ela virar {estagio.proximo.nome}.{" "}
@@ -147,6 +336,29 @@ export default function Brasa({ resumo, refeicoes, hoje }: { resumo: Resumo; ref
           <p className="nota">Ela chegou ao maior tamanho. Cada treino agora é mais uma história de vocês dois.</p>
         )}
       </div>
+
+      {aberto === "comer" && (
+        <Gaveta titulo="Comida da Brasa" onFechar={() => setAberto(null)}>
+          <div className="brasa-refeicoes">
+            {(Object.keys(JANELAS) as Refeicao[]).map((r) => {
+              const comeu = comidas.includes(r);
+              return (
+                <span key={r} className={`chip ${comeu ? "feito" : janela === r ? "aberta" : ""}`}>
+                  {comeu ? "✓" : "·"} {JANELAS[r].nome} <small>{String(JANELAS[r].inicio).padStart(2, "0")}h–{JANELAS[r].fim}h</small>
+                </span>
+              );
+            })}
+          </div>
+          <p className="nota">
+            {janela ? "Ela já comeu nesta refeição." : proxima ? `Próxima refeição dela: ${JANELAS[proxima].nome.toLowerCase()}, a partir das ${JANELAS[proxima].inicio}h.` : "As refeições de hoje acabaram. Amanhã tem mais."}
+          </p>
+        </Gaveta>
+      )}
+      {atalhoAberto && (
+        <Gaveta titulo={atalhoAberto.nome} onFechar={() => setAberto(null)}>
+          {atalhoAberto.painel}
+        </Gaveta>
+      )}
     </section>
   );
 }
