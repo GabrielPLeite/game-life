@@ -22,8 +22,8 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
-      // As letras também ficam guardadas para uso offline.
-      workbox: { globPatterns: ["**/*.{js,css,html,woff2}"] },
+      // As letras e as imagens da Brasa também ficam guardadas para uso offline.
+      workbox: { globPatterns: ["**/*.{js,css,html,woff2,webp}"] },
       manifest: {
         name: "Game Life",
         short_name: "Game Life",

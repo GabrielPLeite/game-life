@@ -124,6 +124,18 @@ export default function Configuracoes({ configuracoes: c, metaAguaHoje, metas }:
               {comGlicose ? "Desligar" : "Ligar"}
             </button>
           </div>
+          <div className="interruptor">
+            <span>
+              Companheiro
+              <br />
+              <small className="suave">
+                {c.companheiro === "heroi" ? "Herói, com batalhas, loja e bestiário." : "Brasa. O herói está guardado, com nível, ouro e itens."}
+              </small>
+            </span>
+            <button className="chip" onClick={() => salvar({ companheiro: c.companheiro === "heroi" ? "brasa" : "heroi" })}>
+              {c.companheiro === "heroi" ? "Trocar pela Brasa" : "Voltar ao herói"}
+            </button>
+          </div>
           <button className="discreto" onClick={() => void baixarBackup()}>
             Baixar backup dos meus dados
           </button>

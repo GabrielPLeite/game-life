@@ -16,6 +16,7 @@ import Analises from "./componentes/Analises";
 import Configuracoes from "./componentes/Configuracoes";
 import Batalha, { AvisoDeGolpe, useGolpe } from "./componentes/Batalha";
 import CriarHeroi from "./componentes/CriarHeroi";
+import Brasa from "./componentes/Brasa";
 import { tituloDoNivel } from "./rpg";
 import { AvisoSensor, useImportarSensor } from "./componentes/Sensor";
 
@@ -91,7 +92,7 @@ export default function App() {
 
   // useLiveQuery relê o banco sozinho sempre que algo muda.
   const dados = useLiveQuery(async () => {
-    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas, diasSensor] = await Promise.all([
+    const [configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas, diasSensor, brasa] = await Promise.all([
       lerConfiguracoes(),
       db.dias.toArray(),
       db.agua.toArray(),
@@ -107,8 +108,9 @@ export default function App() {
       db.vasos.toArray(),
       db.regas.toArray(),
       db.diasSensor.toArray(),
+      db.brasa.toArray(),
     ]);
-    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas, diasSensor };
+    return { configuracoes, dias, agua, glicose, treinos, marcacoes, habitos, recompensas, compras, sincronizacoes, metas, registrosMeta, vasos, regas, diasSensor, brasa };
   });
 
   const resumo = dados ? montarResumo(dados, hoje) : undefined;
@@ -131,18 +133,20 @@ export default function App() {
   const golpe = useGolpe(resumo);
 
   if (!dados || !resumo) return null;
-  if (!dados.configuracoes.heroiNome) return <CriarHeroi />;
+  // A Brasa é a companheira padrão; o herói fica guardado e volta pelas configurações.
+  const comHeroi = dados.configuracoes.companheiro === "heroi";
+  if (comHeroi && !dados.configuracoes.heroiNome) return <CriarHeroi />;
   const comGlicose = glicoseLigada(dados.configuracoes);
 
   return (
     <>
-      <AvisoDeGolpe golpe={golpe} resumo={resumo} />
+      {comHeroi && <AvisoDeGolpe golpe={golpe} resumo={resumo} />}
       <AvisoSensor texto={avisoSensor} onFechar={fecharAvisoSensor} />
       <main>
-        {aba !== "analises" && <Cabecalho resumo={resumo} />}
+        {aba !== "analises" && <Cabecalho resumo={resumo} semHeroi={!comHeroi} />}
         {aba === "hoje" && (
           <>
-            <Batalha resumo={resumo} golpe={golpe} compacta />
+            {comHeroi ? <Batalha resumo={resumo} golpe={golpe} compacta /> : <Brasa resumo={resumo} refeicoes={dados.brasa} hoje={hoje} />}
             <EmJogo resumo={resumo} comGlicose={comGlicose} />
             <Treino resumo={resumo} configuracoes={dados.configuracoes} />
             <Metas resumo={resumo} />
@@ -152,7 +156,7 @@ export default function App() {
           </>
         )}
         {aba === "habitos" && <Habitos resumo={resumo} comGlicose={comGlicose} />}
-        {aba === "jogo" && <Jogo resumo={resumo} golpe={golpe} />}
+        {aba === "jogo" && <Jogo resumo={resumo} golpe={golpe} comHeroi={comHeroi} />}
         {aba === "analises" && <Analises dados={dados} resumo={resumo} />}
         {aba !== "analises" && (
           <>
