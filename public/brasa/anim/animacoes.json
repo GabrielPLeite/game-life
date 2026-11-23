@@ -5,9 +5,10 @@
       "quadros": 46,
       "fps": 20.0,
       "loop": true,
-      "largura": 437,
-      "altura": 360,
-      "colunas": 36,
+      "largura": 388,
+      "altura": 320,
+      "colunas": 41,
+      "vaievem": true,
       "linhas": 2
     }
   }

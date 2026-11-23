@@ -3,7 +3,7 @@ import { alimentarBrasa } from "../db";
 import { estagioDe, falaDe, humorDe, janelaAberta, JANELAS, poseDe, proximaJanela, type Humor, type Refeicao, type RefeicaoBrasa, type Situacao } from "../brasa";
 import type { Resumo } from "../resumo";
 import { MAX_CONGELAMENTOS } from "../regras";
-import { animacaoBase, esperaGesto, gestoEspontaneo, NAO_INTERROMPE, reacaoPara, type Animacao, type Catalogo, type Evento } from "../animacao";
+import { animacaoBase, esperaGesto, gestoEspontaneo, NAO_INTERROMPE, proximaVariacao, reacaoPara, variacoesDe, type Animacao, type Catalogo, type Evento } from "../animacao";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -71,12 +71,13 @@ function Quadros({ anim, onFim }: { anim: Animacao; onFim: () => void }) {
     let id = 0;
     const t0 = performance.now();
     const passo = (t: number) => {
+      const total = anim.vaievem && anim.quadros > 1 ? anim.quadros * 2 - 2 : anim.quadros;
       let i = Math.floor(((t - t0) / 1000) * anim.fps);
-      if (i >= anim.quadros) {
+      if (i >= total) {
         if (!anim.loop) return fim.current();
-        i %= anim.quadros;
+        i %= total;
       }
-      mostrar(i);
+      mostrar(i < anim.quadros ? i : total - i);
       id = requestAnimationFrame(passo);
     };
     id = requestAnimationFrame(passo);
@@ -99,10 +100,11 @@ const VELOCIDADE: Partial<Record<Humor, number>> = { animada: 16, energia: 13, f
 const OLHA_DIREITA = new Set(["e1-com-sede", "e1-bem-hidratada", "e1-com-fome", "e1-doente", "e1-carinhosa", "e2-curiosa", "e2-bufando", "e3-feliz", "e3-rugindo", "e3-pronta", "e3-carinhosa"]);
 
 /**
- * Movimento da Brasa feito em código: passeia pela cena dando passinhos, para, respira, vira.
- * Com fome dá pulinhos, cansada respira fundo devagar. Mexe direto no estilo (sem re-render).
+ * Movimento da Brasa pela cena. Ela só sai do lugar se existir a animação de andar (pernas de verdade);
+ * sem ela, fica parada, para não "deslizar" com as patas paradas. Nas poses paradas, o código ainda dá
+ * respiração e pulinhos; com animação por quadros, quem mexe é a própria animação.
  */
-function useMovimento(humor: Humor, arquivo: string, pulo: number) {
+function useMovimento(humor: Humor, arquivo: string, pulo: number, podeAndar: boolean, aoAndar: (andando: boolean) => void) {
   const corpo = useRef<HTMLDivElement>(null);
   const virador = useRef<HTMLDivElement>(null);
   const estado = useRef({ x: 50, alvo: 50, dir: -1, pausaAte: 0, ultimo: 0, puloEm: -1e9 });
@@ -110,6 +112,11 @@ function useMovimento(humor: Humor, arquivo: string, pulo: number) {
   humorRef.current = humor;
   const arquivoRef = useRef(arquivo);
   arquivoRef.current = arquivo;
+  const podeAndarRef = useRef(podeAndar);
+  podeAndarRef.current = podeAndar;
+  const aoAndarRef = useRef(aoAndar);
+  aoAndarRef.current = aoAndar;
+  const andavaRef = useRef(false);
 
   useEffect(() => {
     estado.current.puloEm = performance.now();
@@ -123,7 +130,7 @@ function useMovimento(humor: Humor, arquivo: string, pulo: number) {
       const dt = Math.min(0.05, (t - (e.ultimo || t)) / 1000);
       e.ultimo = t;
       const h = humorRef.current;
-      const vel = calmo ? 0 : VELOCIDADE[h] ?? 0;
+      const vel = calmo || !podeAndarRef.current ? 0 : VELOCIDADE[h] ?? 0;
       let andando = false;
       if (vel > 0 && t > e.pausaAte) {
         const falta = e.alvo - e.x;
@@ -140,14 +147,16 @@ function useMovimento(humor: Humor, arquivo: string, pulo: number) {
         e.x += (50 - e.x) * Math.min(1, dt * 1.5);
       }
 
+      if (andando !== andavaRef.current) {
+        andavaRef.current = andando;
+        aoAndarRef.current(andando);
+      }
+
       let y = 0;
       let sy = 1;
+      const porQuadros = arquivoRef.current.startsWith("anim:");
       if (!calmo) {
-        if (andando) {
-          const passo = Math.abs(Math.sin((t / 1000) * Math.PI * (2 + vel / 8)));
-          y = -passo * 7;
-          sy = 1 - passo * 0.035;
-        } else if (arquivoRef.current.startsWith("anim:")) {
+        if (andando || porQuadros) {
           // A própria animação já respira: não soma outro movimento por cima.
         } else if (h === "dormindo" || h === "cansada" || h === "doente" || h === "fraca") {
           sy = 1 + 0.035 * Math.sin((t / 4200) * Math.PI * 2);
@@ -156,12 +165,12 @@ function useMovimento(humor: Humor, arquivo: string, pulo: number) {
         }
         // Pulinhos: com fome (pedindo comida), animada de vez em quando, e quando você toca.
         const ciclo = h === "fome" ? 1700 : h === "animada" ? 3200 : 0;
-        if (ciclo && !andando) {
+        if (ciclo && !porQuadros) {
           const f = (t % ciclo) / ciclo;
           if (f < 0.22) y -= Math.sin((f / 0.22) * Math.PI) * 14;
         }
         const desde = t - e.puloEm;
-        if (desde < 520) y -= Math.sin((desde / 520) * Math.PI) * 26;
+        if (desde < 520 && !porQuadros) y -= Math.sin((desde / 520) * Math.PI) * 26;
       }
       const olhaDireita = OLHA_DIREITA.has(arquivoRef.current) ? 1 : -1;
       if (corpo.current) corpo.current.style.left = `${e.x}%`;
@@ -290,10 +299,19 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
     if (treinouHoje && !treinouAntes.current) reagir("treinou");
     treinouAntes.current = treinouHoje;
   });
-  const nomeAnim = extra ?? base;
-  const anim = nomeAnim ? cat?.[`e${estagio.n}`]?.[nomeAnim] : undefined;
+  // Repouso com variações (idle, idle2, idle3...): ao fim de cada uma, sorteia a próxima.
+  const variacoes = variacoesDe(cat, estagio.n, base);
+  const [variacao, setVariacao] = useState(0);
+  const baseAtual = variacoes.length > 1 ? variacoes[variacao % variacoes.length] : base;
+  const sortearVariacao = () => setVariacao((v) => proximaVariacao(v, variacoes.length, Math.random()));
+  const temAndar = !!cat?.[`e${estagio.n}`]?.andar;
+  const [andando, setAndando] = useState(false);
+  const nomeAnim = andando && temAndar ? "andar" : extra ?? baseAtual;
+  const animCru = nomeAnim ? cat?.[`e${estagio.n}`]?.[nomeAnim] : undefined;
+  const anim = animCru && !extra && !andando && variacoes.length > 1 ? { ...animCru, loop: false } : animCru;
+  const aoTerminar = () => (extra ? setExtra(null) : sortearVariacao());
 
-  const { corpo, virador } = useMovimento(humor, anim ? `anim:${nomeAnim}` : pose.arquivo, reacao?.n ?? 0);
+  const { corpo, virador } = useMovimento(humor, anim ? `anim:${nomeAnim}` : pose.arquivo, reacao?.n ?? 0, temAndar, setAndando);
 
   const janela = janelaAberta(agora);
   const podeComer = janela !== null && !comidas.includes(janela);
@@ -371,7 +389,7 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
           <button className="brasa-corpo" onClick={tocar} aria-label={`Brasa está ${ROTULO_HUMOR[humor]}. Toque para fazer carinho.`}>
             <div className="brasa-virador" ref={virador}>
               {anim ? (
-                <Quadros key={nomeAnim} anim={anim} onFim={() => setExtra(null)} />
+                <Quadros key={`${nomeAnim}-${variacao}`} anim={anim} onFim={aoTerminar} />
               ) : (
                 <img key={pose.arquivo} src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />
               )}

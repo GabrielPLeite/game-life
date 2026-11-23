@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { animacaoBase, esperaGesto, gestoEspontaneo, reacaoPara, type Catalogo } from "./animacao";
+import { animacaoBase, esperaGesto, gestoEspontaneo, proximaVariacao, reacaoPara, variacoesDe, type Catalogo } from "./animacao";
 
 const a = { arquivo: "x.webp", quadros: 8, fps: 12, loop: true, largura: 300, altura: 320 };
 const cat: Catalogo = { e1: { idle: a, piscar: { ...a, loop: false }, comemorar: { ...a, loop: false }, dormindo: a } };
@@ -31,5 +31,18 @@ describe("reações e gestos", () => {
   it("espera entre 3 e 7 segundos", () => {
     expect(esperaGesto(0)).toBe(3000);
     expect(esperaGesto(1)).toBe(7000);
+  });
+});
+
+describe("variações do repouso", () => {
+  const c: Catalogo = { e1: { idle: a, idle2: a, idle3: a, idleia: a } };
+  it("acha idle, idle2, idle3", () => {
+    expect(variacoesDe(c, 1, "idle")).toEqual(["idle", "idle2", "idle3"]);
+  });
+  it("volta à principal depois de uma extra e sorteia entre as extras", () => {
+    expect(proximaVariacao(2, 3, 0.9)).toBe(0);
+    expect(proximaVariacao(0, 3, 0.2)).toBe(0);
+    expect(proximaVariacao(0, 3, 0.6)).toBe(1);
+    expect(proximaVariacao(0, 3, 0.99)).toBe(2);
   });
 });

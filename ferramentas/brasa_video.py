@@ -79,6 +79,7 @@ def main():
     p.add_argument("--fim", type=float)
     p.add_argument("--loop", action="store_true", help="repete sem parar (repouso, dormindo)")
     p.add_argument("--altura", type=int, default=320, help="altura de cada quadro em pixels")
+    p.add_argument("--vaievem", action="store_true", help="toca para frente e depois de volta (loop mais longo e sem emenda)")
     p.add_argument("--espelhar", action="store_true", help="vira o desenho para olhar para o outro lado")
     a = p.parse_args()
 
@@ -129,6 +130,7 @@ def main():
         "largura": larg,
         "altura": alt,
         "colunas": colunas,
+        "vaievem": a.vaievem,
         "linhas": linhas,
     }
     indice.write_text(json.dumps(dados, indent=2, ensure_ascii=False) + "\n")

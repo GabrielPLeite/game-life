@@ -19,6 +19,8 @@ export interface Animacao {
   /** Quadros ficam em grade, da esquerda para a direita e de cima para baixo. */
   colunas?: number;
   linhas?: number;
+  /** Toca para frente e depois de volta: loop com o dobro da duração, sem emenda. */
+  vaievem?: boolean;
 }
 /** { e1: { idle: {...}, piscar: {...} }, e2: {...} } */
 export type Catalogo = Record<string, Record<string, Animacao>>;
@@ -79,3 +81,17 @@ export function gestoEspontaneo(cat: Catalogo | undefined, estagio: NumeroEstagi
 
 /** Espera até o próximo gesto: de 3 a 7 segundos, sorteado para não parecer robô. */
 export const esperaGesto = (sorte: number) => 3000 + sorte * 4000;
+
+/** Variações de uma animação de base (idle, idle2, idle3...), para o repouso não repetir sempre igual. */
+export function variacoesDe(cat: Catalogo | undefined, estagio: NumeroEstagio, base: string | null): string[] {
+  if (!base) return [];
+  const re = new RegExp(`^${base}\\d*$`);
+  return Object.keys(doEstagio(cat, estagio)).filter((n) => re.test(n)).sort();
+}
+
+/** Próxima variação: a principal (0) aparece mais; nunca repete uma variação extra seguida. */
+export function proximaVariacao(atual: number, total: number, sorte: number): number {
+  if (total <= 1) return 0;
+  if (atual !== 0 || sorte < 0.5) return 0;
+  return 1 + Math.floor(((sorte - 0.5) / 0.5) * (total - 1));
+}
