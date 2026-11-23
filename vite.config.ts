@@ -23,7 +23,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
       // As letras e as imagens da Brasa também ficam guardadas para uso offline.
-      workbox: { globPatterns: ["**/*.{js,css,html,woff2,webp}"] },
+      workbox: { globPatterns: ["**/*.{js,css,html,woff2,webp,json}"] },
       manifest: {
         name: "Game Life",
         short_name: "Game Life",

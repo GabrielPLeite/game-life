@@ -601,3 +601,4 @@ header.heroi > * { min-width: 0; }
 .brasa-refeicoes .chip.feito { background: var(--treino); color: var(--creme, #fff); border-color: var(--treino); }
 .brasa-refeicoes .chip.aberta { border-color: #7a1f1f; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .faiscas, .zzz, .estrelas, .brasa-balao, .brasa-fala, .gaveta, .gaveta-fundo { animation: none; } .faiscas { display: none; } }
+.brasa-quadros { height: clamp(130px, 24vh, 190px); max-width: 62vw; background-repeat: no-repeat; filter: drop-shadow(0 0 10px #ff8a2a40); }

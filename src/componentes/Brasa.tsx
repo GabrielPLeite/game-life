@@ -3,6 +3,7 @@ import { alimentarBrasa } from "../db";
 import { estagioDe, falaDe, humorDe, janelaAberta, JANELAS, poseDe, proximaJanela, type Humor, type Refeicao, type RefeicaoBrasa, type Situacao } from "../brasa";
 import type { Resumo } from "../resumo";
 import { MAX_CONGELAMENTOS } from "../regras";
+import { animacaoBase, esperaGesto, gestoEspontaneo, NAO_INTERROMPE, reacaoPara, type Animacao, type Catalogo, type Evento } from "../animacao";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -33,7 +34,60 @@ const ROTULO_HUMOR: Record<Humor, string> = {
   irritada: "fingindo estar brava",
 };
 
-// ---------- Animação ----------
+// ---------- Animação por quadros ----------
+
+let catalogo: Promise<Catalogo | undefined> | null = null;
+/** Lista de animações disponíveis (public/brasa/anim/animacoes.json). Sem o arquivo, fica só nas poses paradas. */
+function useCatalogo() {
+  const [c, setC] = useState<Catalogo>();
+  useEffect(() => {
+    catalogo ??= fetch(`${BASE}brasa/anim/animacoes.json`)
+      .then((r) => (r.ok ? (r.json() as Promise<Catalogo>) : undefined))
+      .catch(() => undefined);
+    void catalogo.then(setC);
+  }, []);
+  return c;
+}
+
+/** Toca uma folha de quadros. Em loop, repete; senão, avisa quando acabar. */
+function Quadros({ anim, onFim }: { anim: Animacao; onFim: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const fim = useRef(onFim);
+  fim.current = onFim;
+  useEffect(() => {
+    const calmo = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const mostrar = (i: number) => {
+      if (ref.current) ref.current.style.backgroundPosition = `${anim.quadros > 1 ? (i / (anim.quadros - 1)) * 100 : 0}% 0`;
+    };
+    mostrar(0);
+    if (calmo) {
+      if (!anim.loop) fim.current();
+      return;
+    }
+    let id = 0;
+    const t0 = performance.now();
+    const passo = (t: number) => {
+      let i = Math.floor(((t - t0) / 1000) * anim.fps);
+      if (i >= anim.quadros) {
+        if (!anim.loop) return fim.current();
+        i %= anim.quadros;
+      }
+      mostrar(i);
+      id = requestAnimationFrame(passo);
+    };
+    id = requestAnimationFrame(passo);
+    return () => cancelAnimationFrame(id);
+  }, [anim]);
+  return (
+    <div
+      ref={ref}
+      className="brasa-quadros"
+      style={{ backgroundImage: `url(${BASE}brasa/anim/${anim.arquivo})`, backgroundSize: `${anim.quadros * 100}% 100%`, aspectRatio: `${anim.largura} / ${anim.altura}` }}
+    />
+  );
+}
+
+// ---------- Movimento ----------
 
 /** Velocidade de passeio (% da largura da cena por segundo). Zero = fica no lugar. */
 const VELOCIDADE: Partial<Record<Humor, number>> = { animada: 16, energia: 13, feliz: 9, hidratada: 9, curiosa: 7, sede: 4 };
@@ -89,6 +143,8 @@ function useMovimento(humor: Humor, arquivo: string, pulo: number) {
           const passo = Math.abs(Math.sin((t / 1000) * Math.PI * (2 + vel / 8)));
           y = -passo * 7;
           sy = 1 - passo * 0.035;
+        } else if (arquivoRef.current.startsWith("anim:")) {
+          // A própria animação já respira: não soma outro movimento por cima.
         } else if (h === "dormindo" || h === "cansada" || h === "doente" || h === "fraca") {
           sy = 1 + 0.035 * Math.sin((t / 4200) * Math.PI * 2);
         } else {
@@ -207,7 +263,33 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
   const estagio = estagioDe(diasCumpridos);
   const pose = poseDe(estagio.n, humor);
   const fala = reacao ? falaDe(reacao.situacao, `${hoje}-${reacao.n}`) : falaDe(humorDoDia, `${hoje}-${agora.getHours()}`);
-  const { corpo, virador } = useMovimento(humor, pose.arquivo, reacao?.n ?? 0);
+
+  // Animação por quadros: base do humor, com gestos espontâneos e reações por cima.
+  const cat = useCatalogo();
+  const base = animacaoBase(cat, estagio.n, humor);
+  const [extra, setExtra] = useState<string | null>(null);
+  const extraRef = useRef(extra);
+  extraRef.current = extra;
+  const reagir = (evento: Evento) => {
+    const r = reacaoPara(cat, estagio.n, evento);
+    if (r && !(extraRef.current && NAO_INTERROMPE.has(extraRef.current))) setExtra(r);
+  };
+  // Piscar e olhar em volta de vez em quando, com intervalos sorteados.
+  useEffect(() => {
+    if (extra || !base) return;
+    const t = setTimeout(() => setExtra(gestoEspontaneo(cat, estagio.n, base, Math.random())), esperaGesto(Math.random()));
+    return () => clearTimeout(t);
+  }, [extra, base, cat, estagio.n]);
+  // Comemora quando um treino é concluído com o app aberto.
+  const treinouAntes = useRef(treinouHoje);
+  useEffect(() => {
+    if (treinouHoje && !treinouAntes.current) reagir("treinou");
+    treinouAntes.current = treinouHoje;
+  });
+  const nomeAnim = extra ?? base;
+  const anim = nomeAnim ? cat?.[`e${estagio.n}`]?.[nomeAnim] : undefined;
+
+  const { corpo, virador } = useMovimento(humor, anim ? `anim:${nomeAnim}` : pose.arquivo, reacao?.n ?? 0);
 
   const janela = janelaAberta(agora);
   const podeComer = janela !== null && !comidas.includes(janela);
@@ -221,11 +303,13 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
     toques.current = [...toques.current.filter((x) => t - x < 6000), t];
     const muitos = toques.current.length >= 5;
     setReacao({ situacao: muitos ? "toqueDemais" : "toque", humor: muitos ? "irritada" : "carinhosa", n: t });
+    reagir("toque");
   };
   const alimentar = async () => {
     if (!janela || !podeComer) return;
     await alimentarBrasa(janela);
     setReacao({ situacao: "alimentou", humor: "satisfeita", n: Date.now() });
+    reagir("alimentou");
   };
 
   const aguaPct = resumo.hoje.metaAguaMl ? Math.min(100, Math.round((resumo.hoje.aguaMl / resumo.hoje.metaAguaMl) * 100)) : 0;
@@ -282,7 +366,11 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
         <div className="brasa-andante" ref={corpo}>
           <button className="brasa-corpo" onClick={tocar} aria-label={`Brasa está ${ROTULO_HUMOR[humor]}. Toque para fazer carinho.`}>
             <div className="brasa-virador" ref={virador}>
-              <img key={pose.arquivo} src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />
+              {anim ? (
+                <Quadros key={nomeAnim} anim={anim} onFim={() => setExtra(null)} />
+              ) : (
+                <img key={pose.arquivo} src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />
+              )}
             </div>
             <Faiscas humor={humor} />
             {pose.balao && (
