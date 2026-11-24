@@ -620,3 +620,61 @@ body.janelinha-corpo { margin: 0; background: #f0cf93; overflow: hidden; }
 @keyframes janelinha-respira { 50% { transform: scale(1.03, 0.98); } }
 .janelinha-legenda { font-size: 0.75rem; opacity: 0.8; }
 .janelinha-comer { border: 2px solid #b3361b; background: #ffd166; color: #3b2a1a; border-radius: 8px; padding: 4px 10px; font-weight: 600; cursor: pointer; }
+
+/* ============================================================
+   Visual Brasa (2026-11-23): o app inteiro no tema da Brasa.
+   Covil quente: creme de brasa, laranja de fogo, cantos arredondados e letras de desenho animado.
+   Fica por cima do Pergaminho; para voltar a ele, basta apagar daqui até o fim.
+   ============================================================ */
+:root {
+  --fundo: #f7e6cf;
+  --cartao: #fff4e4;
+  --borda: #d08a5c;
+  --tinta: #3a1d12;
+  --texto: #3a1d12;
+  --suave: #7a4a30;
+  --vinho: #c2410c;
+  --creme: #fff8ee;
+  --xp: #b45309;
+  --ouro: #b45309;
+  --folha-de-ouro: #f59e0b;
+  --habito: #9a3412;
+  --chefe: #b91c1c;
+  --perigo: #b91c1c;
+  --atencao: #b45309;
+  font-family: "Nunito", system-ui, sans-serif;
+  font-size: 100%;
+}
+body {
+  background-color: var(--fundo);
+  background-image: radial-gradient(120% 60% at 50% 0%, #ffe3bf 0%, transparent 60%), radial-gradient(90% 50% at 50% 110%, #f5b98166 0%, transparent 70%);
+  background-attachment: fixed;
+}
+h1, h2, h3, .abas button, button.principal, button.chip, .cabecalho-dobravel, .versus, .covil-nivel, .dado, .zzz, .numeros dt {
+  font-family: "Baloo 2", "Nunito", system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+h3 { color: var(--vinho); }
+.nota { font-style: normal; }
+
+.cartao, header.heroi, .arena-cartao { background: #fff4e4ee; border: 1.5px solid #e3a77c; border-radius: 16px; box-shadow: 0 3px 0 #c2410c22; }
+.numeros div { background: var(--creme); border: 1.5px solid #e3a77c; border-radius: 12px; }
+.barra { background: #fde3c8; border: 1.5px solid #d08a5c; border-radius: 999px; overflow: hidden; }
+.barra-cheia { border-radius: 999px; }
+.barra-cheia.xp { background: linear-gradient(90deg, #c2410c, #f97316, #fbbf24); }
+button.principal { border-radius: 12px; }
+button.discreto, button.chip, .botao-arquivo, .atributos li, .itens li, .bestiario li { background: var(--creme); border-radius: 10px; }
+.aviso { border-radius: 12px; }
+.abas { background: #3a1d12; border-top: 3px solid #f97316; }
+.abas button { color: #fde3c8; border-radius: 10px; }
+
+.cena { border: 2px solid #e3a77c; border-radius: 18px; }
+.atalho { background: var(--creme); border-color: #e3a77c; border-radius: 14px; }
+.atalho.alerta { border-color: #c2410c; box-shadow: 0 0 0 1px #c2410c inset, 0 0 12px #f9731655; }
+.atalho-selo { background: #c2410c; }
+.selo-status { background: #fff8eee6; border-color: #e3a77c; }
+.brasa-fala { background: #fff8ee; border-color: #e3a77c; font-style: normal; border-radius: 16px; }
+.brasa-balao { background: #fff8ee; border-color: #e3a77c; }
+.brasa-refeicoes .chip.aberta { border-color: #c2410c; }
+.gaveta { border-radius: 20px 20px 0 0; }

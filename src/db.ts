@@ -626,7 +626,7 @@ export type Backup = Awaited<ReturnType<typeof exportarTudo>>;
  * Aceita backups de versões antigas (tabelas que não existiam ficam vazias).
  */
 export async function restaurarBackup(dados: Partial<Backup> & { app?: string }): Promise<void> {
-  if (dados.app !== "game-life") throw new Error("Este arquivo não é um backup do Game Life.");
+  if (dados.app !== "game-life") throw new Error("Este arquivo não é um backup da Brasa (Game Life).");
   const tabelas = [db.agua, db.glicose, db.treinos, db.marcacoes, db.habitos, db.recompensas, db.compras, db.sensor, db.sincronizacoes, db.metas, db.registrosMeta, db.vasos, db.regas, db.brasa, db.dias, db.configuracoes];
   await db.transaction("rw", tabelas, async () => {
     await Promise.all(tabelas.map((t) => t.clear()));
