@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { ehAndroid, linkBolinha } from "../flutuante";
+import { MiniBrasa, useJanelinha } from "./Flutuante";
 import { alimentarBrasa } from "../db";
 import { estagioDe, falaDe, humorDe, janelaAberta, JANELAS, poseDe, proximaJanela, type Humor, type Refeicao, type RefeicaoBrasa, type Situacao } from "../brasa";
 import type { Resumo } from "../resumo";
 import { MAX_CONGELAMENTOS } from "../regras";
+import { animacaoBase, esperaGesto, gestoEspontaneo, NAO_INTERROMPE, proximaVariacao, reacaoPara, variacoesDe, type Animacao, type Catalogo, type Evento } from "../animacao";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -14,6 +18,23 @@ function useAgora() {
     return () => clearInterval(t);
   }, []);
   return agora;
+}
+
+const CHAVE_BOLINHA = "brasa-bolinha";
+function lerBolinha() {
+  try {
+    return localStorage.getItem(CHAVE_BOLINHA) === "1";
+  } catch {
+    return false;
+  }
+}
+function gravarBolinha(ligada: boolean) {
+  try {
+    if (ligada) localStorage.setItem(CHAVE_BOLINHA, "1");
+    else localStorage.removeItem(CHAVE_BOLINHA);
+  } catch {
+    /* sem armazenamento: só não lembra */
+  }
 }
 
 const ROTULO_HUMOR: Record<Humor, string> = {
@@ -33,7 +54,151 @@ const ROTULO_HUMOR: Record<Humor, string> = {
   irritada: "fingindo estar brava",
 };
 
-// ---------- Animação ----------
+// ---------- Animação por quadros ----------
+
+let catalogo: Promise<Catalogo | undefined> | null = null;
+/** Lista de animações disponíveis (public/brasa/anim/animacoes.json). Sem o arquivo, fica só nas poses paradas. */
+function useCatalogo() {
+  const [c, setC] = useState<Catalogo>();
+  useEffect(() => {
+    catalogo ??= fetch(`${BASE}brasa/anim/animacoes.json`)
+      .then((r) => (r.ok ? (r.json() as Promise<Catalogo>) : undefined))
+      .catch(() => undefined);
+    void catalogo.then(setC);
+  }, []);
+  return c;
+}
+
+/** Toca uma folha de quadros. Em loop, repete; senão, avisa quando acabar. */
+function Quadros({ anim, onFim }: { anim: Animacao; onFim: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const fim = useRef(onFim);
+  const colunas = anim.colunas ?? anim.quadros;
+  const linhas = anim.linhas ?? 1;
+  fim.current = onFim;
+  useEffect(() => {
+    const calmo = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const mostrar = (i: number) => {
+      const c = i % colunas;
+      const l = Math.floor(i / colunas);
+      if (ref.current) ref.current.style.backgroundPosition = `${colunas > 1 ? (c / (colunas - 1)) * 100 : 0}% ${linhas > 1 ? (l / (linhas - 1)) * 100 : 0}%`;
+    };
+    mostrar(0);
+    if (calmo) {
+      if (!anim.loop) fim.current();
+      return;
+    }
+    let id = 0;
+    const t0 = performance.now();
+    const passo = (t: number) => {
+      const total = anim.vaievem && anim.quadros > 1 ? anim.quadros * 2 - 2 : anim.quadros;
+      let i = Math.floor(((t - t0) / 1000) * anim.fps);
+      if (i >= total) {
+        if (!anim.loop) return fim.current();
+        i %= total;
+      }
+      mostrar(i < anim.quadros ? i : total - i);
+      id = requestAnimationFrame(passo);
+    };
+    id = requestAnimationFrame(passo);
+    return () => cancelAnimationFrame(id);
+  }, [anim]);
+  return (
+    <div
+      ref={ref}
+      className="brasa-quadros"
+      style={{ backgroundImage: `url(${BASE}brasa/anim/${anim.arquivo})`, backgroundSize: `${colunas * 100}% ${linhas * 100}%`, aspectRatio: `${anim.largura} / ${anim.altura}` }}
+    />
+  );
+}
+
+// Vídeos WebM com transparência. Cada arquivo é baixado uma vez e fica na memória: trocar de
+// animação não espera a rede. O service worker guarda os arquivos para o app funcionar offline.
+const clipes = new Map<string, Promise<string | undefined>>();
+function carregarClipe(arquivo: string) {
+  let p = clipes.get(arquivo);
+  if (!p) {
+    p = fetch(`${BASE}brasa/anim/${arquivo}`)
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("clipe"))))
+      .then((b) => URL.createObjectURL(b))
+      .catch(() => {
+        clipes.delete(arquivo);
+        return undefined;
+      });
+    clipes.set(arquivo, p);
+  }
+  return p;
+}
+
+/** Baixa em segundo plano todos os vídeos do estágio, um de cada vez, para as trocas serem instantâneas. */
+function usePreCarregar(cat: Catalogo | undefined, estagio: number) {
+  useEffect(() => {
+    if (!cat) return;
+    const lista = Object.values(cat[`e${estagio}`] ?? {}).filter((a) => a?.formato === "webm");
+    let vivo = true;
+    void (async () => {
+      for (const a of lista) if (vivo) await carregarClipe(a.arquivo);
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [cat, estagio]);
+}
+
+interface Camada {
+  id: number;
+  anim: Animacao;
+  url: string;
+}
+
+/**
+ * Toca um vídeo da Brasa. Quando a animação muda, o vídeo novo entra POR CIMA do antigo e o antigo
+ * só sai quando o novo já está rodando: nunca aparece um quadro vazio entre duas animações.
+ * Enquanto o primeiro vídeo não chega, mostra `reserva` (a pose parada).
+ */
+function Clipe({ anim, chave, onFim, reserva }: { anim: Animacao; chave: string; onFim: () => void; reserva: ReactNode }) {
+  const [camadas, setCamadas] = useState<Camada[]>([]);
+  const seq = useRef(0);
+  const fim = useRef(onFim);
+  fim.current = onFim;
+  const calmo = typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const dados = useRef(anim);
+  dados.current = anim;
+
+  useEffect(() => {
+    let vivo = true;
+    const a = dados.current;
+    void carregarClipe(a.arquivo).then((url) => {
+      if (!vivo || !url) return;
+      if (calmo && !a.loop) return fim.current();
+      setCamadas((c) => [...c, { id: ++seq.current, anim: a, url }].slice(-2));
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [chave, calmo]);
+
+  return (
+    <div className="brasa-clipe" style={{ aspectRatio: `${anim.largura} / ${anim.altura}` }}>
+      {camadas.length === 0 && reserva}
+      {camadas.map((c) => (
+        <video
+          key={c.id}
+          src={c.url}
+          muted
+          playsInline
+          autoPlay={!calmo}
+          loop={c.anim.loop}
+          preload="auto"
+          onPlaying={() => setCamadas((cs) => cs.filter((x) => x.id >= c.id))}
+          onEnded={() => !c.anim.loop && fim.current()}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------- Movimento ----------
 
 /** Velocidade de passeio (% da largura da cena por segundo). Zero = fica no lugar. */
 const VELOCIDADE: Partial<Record<Humor, number>> = { animada: 16, energia: 13, feliz: 9, hidratada: 9, curiosa: 7, sede: 4 };
@@ -41,10 +206,11 @@ const VELOCIDADE: Partial<Record<Humor, number>> = { animada: 16, energia: 13, f
 const OLHA_DIREITA = new Set(["e1-com-sede", "e1-bem-hidratada", "e1-com-fome", "e1-doente", "e1-carinhosa", "e2-curiosa", "e2-bufando", "e3-feliz", "e3-rugindo", "e3-pronta", "e3-carinhosa"]);
 
 /**
- * Movimento da Brasa feito em código: passeia pela cena dando passinhos, para, respira, vira.
- * Com fome dá pulinhos, cansada respira fundo devagar. Mexe direto no estilo (sem re-render).
+ * Movimento da Brasa pela cena. Ela só sai do lugar se existir a animação de andar (pernas de verdade);
+ * sem ela, fica parada, para não "deslizar" com as patas paradas. Nas poses paradas, o código ainda dá
+ * respiração e pulinhos; com animação por quadros, quem mexe é a própria animação.
  */
-function useMovimento(humor: Humor, arquivo: string, pulo: number) {
+function useMovimento(humor: Humor, arquivo: string, pulo: number, podeAndar: boolean, aoAndar: (andando: boolean) => void) {
   const corpo = useRef<HTMLDivElement>(null);
   const virador = useRef<HTMLDivElement>(null);
   const estado = useRef({ x: 50, alvo: 50, dir: -1, pausaAte: 0, ultimo: 0, puloEm: -1e9 });
@@ -52,6 +218,11 @@ function useMovimento(humor: Humor, arquivo: string, pulo: number) {
   humorRef.current = humor;
   const arquivoRef = useRef(arquivo);
   arquivoRef.current = arquivo;
+  const podeAndarRef = useRef(podeAndar);
+  podeAndarRef.current = podeAndar;
+  const aoAndarRef = useRef(aoAndar);
+  aoAndarRef.current = aoAndar;
+  const andavaRef = useRef(false);
 
   useEffect(() => {
     estado.current.puloEm = performance.now();
@@ -65,7 +236,7 @@ function useMovimento(humor: Humor, arquivo: string, pulo: number) {
       const dt = Math.min(0.05, (t - (e.ultimo || t)) / 1000);
       e.ultimo = t;
       const h = humorRef.current;
-      const vel = calmo ? 0 : VELOCIDADE[h] ?? 0;
+      const vel = calmo || !podeAndarRef.current ? 0 : VELOCIDADE[h] ?? 0;
       let andando = false;
       if (vel > 0 && t > e.pausaAte) {
         const falta = e.alvo - e.x;
@@ -82,13 +253,17 @@ function useMovimento(humor: Humor, arquivo: string, pulo: number) {
         e.x += (50 - e.x) * Math.min(1, dt * 1.5);
       }
 
+      if (andando !== andavaRef.current) {
+        andavaRef.current = andando;
+        aoAndarRef.current(andando);
+      }
+
       let y = 0;
       let sy = 1;
+      const porQuadros = arquivoRef.current.startsWith("anim:");
       if (!calmo) {
-        if (andando) {
-          const passo = Math.abs(Math.sin((t / 1000) * Math.PI * (2 + vel / 8)));
-          y = -passo * 7;
-          sy = 1 - passo * 0.035;
+        if (andando || porQuadros) {
+          // A própria animação já respira: não soma outro movimento por cima.
         } else if (h === "dormindo" || h === "cansada" || h === "doente" || h === "fraca") {
           sy = 1 + 0.035 * Math.sin((t / 4200) * Math.PI * 2);
         } else {
@@ -96,12 +271,12 @@ function useMovimento(humor: Humor, arquivo: string, pulo: number) {
         }
         // Pulinhos: com fome (pedindo comida), animada de vez em quando, e quando você toca.
         const ciclo = h === "fome" ? 1700 : h === "animada" ? 3200 : 0;
-        if (ciclo && !andando) {
+        if (ciclo && !porQuadros) {
           const f = (t % ciclo) / ciclo;
           if (f < 0.22) y -= Math.sin((f / 0.22) * Math.PI) * 14;
         }
         const desde = t - e.puloEm;
-        if (desde < 520) y -= Math.sin((desde / 520) * Math.PI) * 26;
+        if (desde < 520 && !porQuadros) y -= Math.sin((desde / 520) * Math.PI) * 26;
       }
       const olhaDireita = OLHA_DIREITA.has(arquivoRef.current) ? 1 : -1;
       if (corpo.current) corpo.current.style.left = `${e.x}%`;
@@ -207,7 +382,43 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
   const estagio = estagioDe(diasCumpridos);
   const pose = poseDe(estagio.n, humor);
   const fala = reacao ? falaDe(reacao.situacao, `${hoje}-${reacao.n}`) : falaDe(humorDoDia, `${hoje}-${agora.getHours()}`);
-  const { corpo, virador } = useMovimento(humor, pose.arquivo, reacao?.n ?? 0);
+
+  // Animação por quadros: base do humor, com gestos espontâneos e reações por cima.
+  const cat = useCatalogo();
+  usePreCarregar(cat, estagio.n);
+  const base = animacaoBase(cat, estagio.n, humor);
+  const [extra, setExtra] = useState<string | null>(null);
+  const extraRef = useRef(extra);
+  extraRef.current = extra;
+  const reagir = (evento: Evento) => {
+    const r = reacaoPara(cat, estagio.n, evento);
+    if (r && !(extraRef.current && NAO_INTERROMPE.has(extraRef.current))) setExtra(r);
+  };
+  // Piscar e olhar em volta de vez em quando, com intervalos sorteados.
+  useEffect(() => {
+    if (extra || !base) return;
+    const t = setTimeout(() => setExtra(gestoEspontaneo(cat, estagio.n, base, Math.random())), esperaGesto(Math.random()));
+    return () => clearTimeout(t);
+  }, [extra, base, cat, estagio.n]);
+  // Comemora quando um treino é concluído com o app aberto.
+  const treinouAntes = useRef(treinouHoje);
+  useEffect(() => {
+    if (treinouHoje && !treinouAntes.current) reagir("treinou");
+    treinouAntes.current = treinouHoje;
+  });
+  // Repouso com variações (idle, idle2, idle3...): ao fim de cada uma, sorteia a próxima.
+  const variacoes = variacoesDe(cat, estagio.n, base);
+  const [variacao, setVariacao] = useState(0);
+  const baseAtual = variacoes.length > 1 ? variacoes[variacao % variacoes.length] : base;
+  const sortearVariacao = () => setVariacao((v) => proximaVariacao(v, variacoes.length, Math.random()));
+  const temAndar = !!cat?.[`e${estagio.n}`]?.andar;
+  const [andando, setAndando] = useState(false);
+  const nomeAnim = andando && temAndar ? "andar" : extra ?? baseAtual;
+  const animCru = nomeAnim ? cat?.[`e${estagio.n}`]?.[nomeAnim] : undefined;
+  const anim = animCru && !extra && !andando && variacoes.length > 1 ? { ...animCru, loop: false } : animCru;
+  const aoTerminar = () => (extra ? setExtra(null) : sortearVariacao());
+
+  const { corpo, virador } = useMovimento(humor, anim ? `anim:${nomeAnim}` : pose.arquivo, reacao?.n ?? 0, temAndar, setAndando);
 
   const janela = janelaAberta(agora);
   const podeComer = janela !== null && !comidas.includes(janela);
@@ -221,11 +432,34 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
     toques.current = [...toques.current.filter((x) => t - x < 6000), t];
     const muitos = toques.current.length >= 5;
     setReacao({ situacao: muitos ? "toqueDemais" : "toque", humor: muitos ? "irritada" : "carinhosa", n: t });
+    reagir("toque");
   };
   const alimentar = async () => {
     if (!janela || !podeComer) return;
     await alimentarBrasa(janela);
     setReacao({ situacao: "alimentou", humor: "satisfeita", n: Date.now() });
+    reagir("alimentou");
+    // Com a bolinha ligada, avisa o celular que ela já comeu, para a bolinha parar de pedir comida.
+    if (bolinhaLigada) setTimeout(() => (location.href = linkDaBolinha("satisfeita", [...comidas, janela])), 1200);
+  };
+
+  // Brasa fora do app: janelinha por cima de tudo no PC, bolinha flutuante no celular.
+  const janelinha = useJanelinha();
+  const android = typeof navigator !== "undefined" && ehAndroid(navigator.userAgent);
+  const [bolinhaLigada, setBolinhaLigada] = useState(() => lerBolinha());
+  const [semAppCelular, setSemAppCelular] = useState(false);
+  useEffect(() => {
+    if (location.hash !== "#bolinha=sem-app") return;
+    history.replaceState(null, "", location.pathname + location.search);
+    gravarBolinha(false);
+    setBolinhaLigada(false);
+    setSemAppCelular(true);
+  }, []);
+  const linkDaBolinha = (h: Humor, r: Refeicao[]) => linkBolinha(`${location.origin}${BASE}`, { estagio: estagio.n, humor: h, refeicoesHoje: r, dia: hoje });
+  const ligarBolinha = () => {
+    gravarBolinha(true);
+    setBolinhaLigada(true);
+    location.href = linkDaBolinha(humorDoDia, comidas);
   };
 
   const aguaPct = resumo.hoje.metaAguaMl ? Math.min(100, Math.round((resumo.hoje.aguaMl / resumo.hoje.metaAguaMl) * 100)) : 0;
@@ -244,7 +478,18 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
         <span title="Congelamentos">
           ❄️ {s.congelamentos}/{MAX_CONGELAMENTOS}
         </span>
+        {janelinha.suportado && (
+          <button className={`covil-fora ${janelinha.janela ? "ligado" : ""}`} onClick={() => (janelinha.janela ? janelinha.fechar() : void janelinha.abrir())} title={janelinha.janela ? "Fechar a janelinha da Brasa" : "Brasa numa janelinha por cima de tudo"} aria-label="Janelinha da Brasa">
+            🪟
+          </button>
+        )}
+        {android && (
+          <button className={`covil-fora ${bolinhaLigada ? "ligado" : ""}`} onClick={ligarBolinha} title={bolinhaLigada ? "Atualizar a bolinha da Brasa" : "Brasa flutuando por cima dos apps"} aria-label="Bolinha flutuante da Brasa">
+            🫧
+          </button>
+        )}
       </div>
+      {semAppCelular && <p className="nota covil-aviso">Para a bolinha flutuante, instale a versão nova do app do celular.</p>}
 
       <div className={`cena ${noite ? "noite" : ""}`}>
         <svg className="cena-fundo" viewBox="0 0 400 260" preserveAspectRatio="xMidYMax slice" aria-hidden>
@@ -282,7 +527,13 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
         <div className="brasa-andante" ref={corpo}>
           <button className="brasa-corpo" onClick={tocar} aria-label={`Brasa está ${ROTULO_HUMOR[humor]}. Toque para fazer carinho.`}>
             <div className="brasa-virador" ref={virador}>
-              <img key={pose.arquivo} src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />
+              {anim?.formato === "webm" ? (
+                <Clipe anim={anim} chave={`${nomeAnim}-${variacao}`} onFim={aoTerminar} reserva={<img src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />} />
+              ) : anim ? (
+                <Quadros key={`${nomeAnim}-${variacao}`} anim={anim} onFim={aoTerminar} />
+              ) : (
+                <img key={pose.arquivo} src={`${BASE}brasa/${pose.arquivo}.webp`} alt="" draggable={false} />
+              )}
             </div>
             <Faiscas humor={humor} />
             {pose.balao && (
@@ -359,6 +610,20 @@ export default function Covil({ resumo, refeicoes, hoje, atalhos }: { resumo: Re
           {atalhoAberto.painel}
         </Gaveta>
       )}
+      {janelinha.janela &&
+        createPortal(
+          <MiniBrasa
+            imagem={`${location.origin}${BASE}brasa/${pose.arquivo}.webp`}
+            fala={fala}
+            legenda={`${estagio.nome} · ${ROTULO_HUMOR[humor]}`}
+            balao={pose.balao}
+            noite={noite}
+            podeComer={podeComer}
+            onTocar={tocar}
+            onAlimentar={() => void alimentar()}
+          />,
+          janelinha.janela.document.body,
+        )}
     </section>
   );
 }

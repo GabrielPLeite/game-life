@@ -23,7 +23,17 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
       // As letras e as imagens da Brasa também ficam guardadas para uso offline.
-      workbox: { globPatterns: ["**/*.{js,css,html,woff2,webp}"] },
+      workbox: {
+        globPatterns: ["**/*.{js,css,html,woff2,webp,json}"],
+        // Os vídeos da Brasa são grandes: ficam guardados para uso offline depois da primeira vez que tocam.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }: { url: URL }) => url.pathname.includes("/brasa/anim/") && url.pathname.endsWith(".webm"),
+            handler: "CacheFirst",
+            options: { cacheName: "brasa-animacoes", expiration: { maxEntries: 60 } },
+          },
+        ],
+      },
       manifest: {
         name: "Game Life",
         short_name: "Game Life",

@@ -601,3 +601,22 @@ header.heroi > * { min-width: 0; }
 .brasa-refeicoes .chip.feito { background: var(--treino); color: var(--creme, #fff); border-color: var(--treino); }
 .brasa-refeicoes .chip.aberta { border-color: #7a1f1f; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .faiscas, .zzz, .estrelas, .brasa-balao, .brasa-fala, .gaveta, .gaveta-fundo { animation: none; } .faiscas { display: none; } }
+.brasa-quadros { height: clamp(130px, 24vh, 190px); max-width: 62vw; background-repeat: no-repeat; filter: drop-shadow(0 0 10px #ff8a2a40); }
+.brasa-clipe { position: relative; height: clamp(160px, 29vh, 250px); max-width: 86vw; filter: drop-shadow(0 0 10px #ff8a2a40); }
+.brasa-clipe > img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.brasa-clipe > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+
+/* Brasa fora do app: botões no topo do covil e janelinha do PC. */
+.covil-fora { border: 1px solid var(--borda); background: transparent; border-radius: 6px; padding: 2px 6px; font-size: 1rem; cursor: pointer; line-height: 1.2; }
+.covil-fora.ligado { background: #f08a2433; }
+.covil-aviso { margin: 6px 0 0; }
+body.janelinha-corpo { margin: 0; background: #f0cf93; overflow: hidden; }
+.janelinha { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px; box-sizing: border-box;
+  background: linear-gradient(180deg, #f6e3b4 0%, #f0cf93 55%, #e6b877 100%); font-family: system-ui, sans-serif; color: #3b2a1a; text-align: center; }
+.janelinha.noite { background: linear-gradient(180deg, #1d1a33 0%, #3b2c4a 55%, #6b4436 100%); color: #f6e3b4; }
+.janelinha-fala { margin: 0; font-size: 0.8rem; line-height: 1.25; background: #fffaf0e6; color: #3b2a1a; border-radius: 10px; padding: 5px 8px; max-width: 95%; }
+.janelinha-brasa { position: relative; border: 0; background: none; padding: 0; cursor: pointer; flex: 1; min-height: 0; display: flex; align-items: center; }
+.janelinha-brasa img { max-height: 100%; max-width: 100%; object-fit: contain; filter: drop-shadow(0 4px 6px #0005); animation: janelinha-respira 3.2s ease-in-out infinite; transform-origin: bottom center; }
+@keyframes janelinha-respira { 50% { transform: scale(1.03, 0.98); } }
+.janelinha-legenda { font-size: 0.75rem; opacity: 0.8; }
+.janelinha-comer { border: 2px solid #b3361b; background: #ffd166; color: #3b2a1a; border-radius: 8px; padding: 4px 10px; font-weight: 600; cursor: pointer; }
