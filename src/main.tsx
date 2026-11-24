@@ -7,6 +7,9 @@ import "@fontsource/im-fell-english-sc/latin-400.css";
 import "@fontsource/eb-garamond/latin-400.css";
 import "@fontsource/eb-garamond/latin-400-italic.css";
 import "@fontsource/eb-garamond/latin-700.css";
+import "@fontsource/nunito/latin-400.css";
+import "@fontsource/nunito/latin-700.css";
+import "@fontsource/baloo-2/latin-700.css";
 import "./estilos.css";
 
 // Liga o modo offline e a atualização automática do app.

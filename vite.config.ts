@@ -21,7 +21,7 @@ export default defineConfig({
     // Transforma o site em um app instalável que funciona sem internet.
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["icon.svg"],
+      includeAssets: ["favicon.png", "apple-touch-icon.png"],
       // As letras e as imagens da Brasa também ficam guardadas para uso offline.
       workbox: {
         globPatterns: ["**/*.{js,css,html,woff2,webp,json}"],
@@ -35,19 +35,19 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: "Game Life",
-        short_name: "Game Life",
-        description: "Hábitos de saúde gamificados, com dados guardados só no seu celular.",
+        name: "Brasa",
+        short_name: "Brasa",
+        description: "Sua companheira Brasa: treino, água, metas e hábitos, com dados guardados só no seu aparelho.",
         lang: "pt-BR",
-        theme_color: "#3b2913",
-        background_color: "#e9d9b0",
+        theme_color: "#3a1d12",
+        background_color: "#f7e6cf",
         display: "standalone",
         start_url: base,
         scope: base,
         icons: [
           { src: "icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "icon-512.png", sizes: "512x512", type: "image/png" },
-          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          { src: "icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
     }),

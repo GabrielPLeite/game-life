@@ -59,7 +59,7 @@ export default function Relatorio({ dados, onFechar }: { dados: DadosBrutos; res
       <article className="folha">
         <h1>Relatório de acompanhamento</h1>
         <p>
-          Período: {data(dias[0])} a {data(hoje)} ({periodo} dias) · Gerado pelo app pessoal Game Life com registros manuais{sensor.leituras.length > 0 && " e leituras do sensor FreeStyle Libre"}.
+          Período: {data(dias[0])} a {data(hoje)} ({periodo} dias) · Gerado pelo app pessoal Brasa com registros manuais{sensor.leituras.length > 0 && " e leituras do sensor FreeStyle Libre"}.
         </p>
         <p>Paciente: ____________________________</p>
 
